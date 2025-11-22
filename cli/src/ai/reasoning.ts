@@ -54,10 +54,49 @@ export interface ReasoningConfig {
 export class ChainOfThought {
   private client: Anthropic;
   private model: string;
+  private readonly DEFAULT_MAX_RETRIES = 3;
+  private readonly DEFAULT_BASE_DELAY = 1000;
 
   constructor(client: Anthropic, model: string = 'claude-sonnet-4-5-20250929') {
     this.client = client;
     this.model = model;
+  }
+
+  /**
+   * Retry helper with exponential backoff
+   * @private
+   */
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    operation: string
+  ): Promise<T> {
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= this.DEFAULT_MAX_RETRIES; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+
+        if (attempt === this.DEFAULT_MAX_RETRIES) {
+          Logger.error(`Max retries exceeded for ${operation}`);
+          throw error;
+        }
+
+        const delay = this.DEFAULT_BASE_DELAY * Math.pow(2, attempt);
+        const jitter = Math.random() * 0.3 * delay;
+        const totalDelay = delay + jitter;
+
+        Logger.warning(
+          `${operation} failed (attempt ${attempt + 1}/${this.DEFAULT_MAX_RETRIES + 1}). ` +
+          `Retrying in ${Math.round(totalDelay)}ms...`
+        );
+
+        await new Promise(resolve => setTimeout(resolve, totalDelay));
+      }
+    }
+
+    throw lastError;
   }
 
   /**
@@ -74,16 +113,19 @@ export class ChainOfThought {
     const cotPrompt = this.buildCoTPrompt(prompt, context, maxSteps);
 
     try {
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 4000,
-        messages: [
-          {
-            role: 'user',
-            content: cotPrompt
-          }
-        ]
-      });
+      const response = await this.retryWithBackoff(
+        () => this.client.messages.create({
+          model: this.model,
+          max_tokens: 4000,
+          messages: [
+            {
+              role: 'user',
+              content: cotPrompt
+            }
+          ]
+        }),
+        'Chain of Thought reasoning'
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
@@ -163,10 +205,49 @@ Begin your step-by-step analysis:`;
 export class TreeOfThought {
   private client: Anthropic;
   private model: string;
+  private readonly DEFAULT_MAX_RETRIES = 3;
+  private readonly DEFAULT_BASE_DELAY = 1000;
 
   constructor(client: Anthropic, model: string = 'claude-sonnet-4-5-20250929') {
     this.client = client;
     this.model = model;
+  }
+
+  /**
+   * Retry helper with exponential backoff
+   * @private
+   */
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    operation: string
+  ): Promise<T> {
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= this.DEFAULT_MAX_RETRIES; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+
+        if (attempt === this.DEFAULT_MAX_RETRIES) {
+          Logger.error(`Max retries exceeded for ${operation}`);
+          throw error;
+        }
+
+        const delay = this.DEFAULT_BASE_DELAY * Math.pow(2, attempt);
+        const jitter = Math.random() * 0.3 * delay;
+        const totalDelay = delay + jitter;
+
+        Logger.warning(
+          `${operation} failed (attempt ${attempt + 1}/${this.DEFAULT_MAX_RETRIES + 1}). ` +
+          `Retrying in ${Math.round(totalDelay)}ms...`
+        );
+
+        await new Promise(resolve => setTimeout(resolve, totalDelay));
+      }
+    }
+
+    throw lastError;
   }
 
   /**
@@ -280,11 +361,14 @@ Provide your response in JSON format:
 }`;
 
     try {
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }]
-      });
+      const response = await this.retryWithBackoff(
+        () => this.client.messages.create({
+          model: this.model,
+          max_tokens: 2000,
+          messages: [{ role: 'user', content: prompt }]
+        }),
+        'Tree of Thought: Generate thoughts'
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
@@ -363,11 +447,14 @@ Synthesize the final answer or solution based on this reasoning path.
 Provide a clear, actionable result.`;
 
     try {
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: synthesisPrompt }]
-      });
+      const response = await this.retryWithBackoff(
+        () => this.client.messages.create({
+          model: this.model,
+          max_tokens: 2000,
+          messages: [{ role: 'user', content: synthesisPrompt }]
+        }),
+        'Tree of Thought: Synthesize final answer'
+      );
 
       const content = response.content[0];
       if (content.type === 'text') {

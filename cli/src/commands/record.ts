@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import inquirer from 'inquirer';
 import ora from 'ora';
@@ -122,20 +122,53 @@ async function launchRecorder(options: RecordOptions): Promise<string> {
   const spinner = ora('Launching Playwright recorder...').start();
 
   try {
+    // Validate and sanitize inputs to prevent command injection
+    const sanitizedScenarioName = options.scenarioName.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    // Validate URL format
+    try {
+      new URL(options.url);
+    } catch (error) {
+      spinner.fail();
+      throw new Error(`Invalid URL format: ${options.url}`);
+    }
+
     // Generate output file path
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
     const outputFile = path.join(
       'recordings',
-      `${options.scenarioName}_${timestamp}.py`
+      `${sanitizedScenarioName}_${timestamp}.py`
     );
 
     spinner.text = 'Recorder is now open. Perform your test actions in the browser.';
     spinner.text += '\nClose the browser when done.';
 
-    // Launch Playwright codegen
-    const command = `playwright codegen ${options.url} --target python --output ${outputFile}`;
+    // Use spawn instead of exec to prevent command injection
+    // Pass arguments as array, not string concatenation
+    await new Promise<void>((resolve, reject) => {
+      const playwrightProcess = spawn('playwright', [
+        'codegen',
+        options.url,
+        '--target',
+        'python',
+        '--output',
+        outputFile
+      ], {
+        stdio: 'inherit' // Inherit stdio to see Playwright's output
+      });
 
-    await execAsync(command);
+      playwrightProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Playwright recorder exited with code ${code}`));
+        }
+      });
+
+      playwrightProcess.on('error', (error) => {
+        reject(new Error(`Failed to launch Playwright: ${error.message}`));
+      });
+    });
 
     spinner.succeed('Recording completed');
 
