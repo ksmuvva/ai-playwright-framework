@@ -122,15 +122,23 @@ IMPORTANT: Return ONLY valid JSON with this exact structure:
 Do not include any explanation, only the JSON object.`
 };
 
-export function buildBDDConversionPrompt(actions: any[], scenarioName: string): string {
-  return `${PROMPTS.BDD_CONVERSION}
+export function buildBDDConversionPrompt(
+  actions: any[],
+  scenarioName: string,
+  reasoning?: string
+): string {
+  const basePrompt = `${PROMPTS.BDD_CONVERSION}
 
 Scenario Name: ${scenarioName}
 
 Playwright Actions:
 ${JSON.stringify(actions, null, 2)}
 
+${reasoning ? `\nReasoning Analysis:\n${reasoning}\n` : ''}
+
 Convert this to a BDD scenario with feature file, step definitions, locators, and test data.`;
+
+  return basePrompt;
 }
 
 export function buildLocatorHealingPrompt(context: {

@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as fs from 'fs/promises';
 import { InitOptions } from '../types';
 import { PythonGenerator } from '../generators/python-generator';
 import { FileUtils } from '../utils/file-utils';
@@ -41,6 +42,9 @@ async function initializeFramework(cmdOptions: any): Promise<void> {
 
     // Generate framework
     await generateFramework(projectDir, options);
+
+    // Create/Update CLI .env file
+    await createCliEnvFile(options);
 
     // Initialize git
     await initializeGit(projectDir);
@@ -127,12 +131,76 @@ async function promptForOptions(cmdOptions: any): Promise<InitOptions> {
 
   const answers = await inquirer.prompt(questions);
 
+  // Determine AI provider
+  const aiProvider = (cmdOptions.aiProvider || answers.aiProvider) as 'anthropic' | 'openai' | 'none';
+
+  // Prompt for model and API key if AI provider is selected
+  let aiModel: string | undefined;
+  let apiKey: string | undefined;
+
+  if (aiProvider !== 'none') {
+    const aiQuestions: any[] = [];
+
+    // Model selection based on provider
+    if (aiProvider === 'anthropic') {
+      aiQuestions.push({
+        type: 'list',
+        name: 'aiModel',
+        message: 'Select Claude model:',
+        choices: [
+          { name: 'Claude Sonnet 4.5 (Recommended - Fast & Intelligent)', value: 'claude-sonnet-4-5-20250929' },
+          { name: 'Claude Opus 4 (Most Capable)', value: 'claude-opus-4-20250514' },
+          { name: 'Claude Sonnet 3.5', value: 'claude-3-5-sonnet-20241022' },
+          { name: 'Claude Haiku 3.5 (Fast & Economical)', value: 'claude-3-5-haiku-20241022' }
+        ],
+        default: 'claude-sonnet-4-5-20250929'
+      });
+    } else if (aiProvider === 'openai') {
+      aiQuestions.push({
+        type: 'list',
+        name: 'aiModel',
+        message: 'Select OpenAI model:',
+        choices: [
+          { name: 'GPT-4 Turbo (Recommended)', value: 'gpt-4-turbo-preview' },
+          { name: 'GPT-4', value: 'gpt-4' },
+          { name: 'GPT-3.5 Turbo (Fast & Economical)', value: 'gpt-3.5-turbo' }
+        ],
+        default: 'gpt-4-turbo-preview'
+      });
+    }
+
+    // API Key input
+    aiQuestions.push({
+      type: 'password',
+      name: 'apiKey',
+      message: `Enter your ${aiProvider === 'anthropic' ? 'Anthropic' : 'OpenAI'} API key:`,
+      validate: (input: string) => {
+        if (!input || input.trim().length === 0) {
+          return 'API key is required';
+        }
+        if (aiProvider === 'anthropic' && !input.startsWith('sk-ant-')) {
+          return 'Anthropic API keys should start with "sk-ant-"';
+        }
+        if (aiProvider === 'openai' && !input.startsWith('sk-')) {
+          return 'OpenAI API keys should start with "sk-"';
+        }
+        return true;
+      }
+    });
+
+    const aiAnswers = await inquirer.prompt(aiQuestions);
+    aiModel = aiAnswers.aiModel;
+    apiKey = aiAnswers.apiKey;
+  }
+
   return {
     projectName: cmdOptions.projectName || answers.projectName,
     language: (cmdOptions.language || answers.language) as 'python' | 'typescript',
     bdd: cmdOptions.bdd !== undefined ? cmdOptions.bdd : answers.bdd,
     powerApps: cmdOptions.powerApps || answers.powerApps || false,
-    aiProvider: (cmdOptions.aiProvider || answers.aiProvider) as 'anthropic' | 'openai' | 'none',
+    aiProvider: aiProvider,
+    aiModel: aiModel,
+    apiKey: apiKey,
     directory: cmdOptions.directory
   };
 }
@@ -263,6 +331,77 @@ async function installDependencies(projectDir: string, options: InitOptions): Pr
     Logger.code('  source venv/bin/activate  # On Windows: venv\\Scripts\\activate');
     Logger.code('  pip install -r requirements.txt');
     Logger.code('  playwright install chromium');
+  }
+}
+
+async function createCliEnvFile(options: InitOptions): Promise<void> {
+  if (options.aiProvider === 'none' || !options.apiKey) {
+    return; // Skip if no AI provider or no API key
+  }
+
+  const spinner = ora('Creating CLI .env file...').start();
+
+  try {
+    // Get the CLI root directory (where package.json is)
+    const cliRootDir = path.resolve(__dirname, '../..');
+    const envFilePath = path.join(cliRootDir, '.env');
+
+    // Check if .env file exists
+    let envContent = '';
+    try {
+      envContent = await fs.readFile(envFilePath, 'utf-8');
+    } catch (error) {
+      // File doesn't exist, will create new one
+    }
+
+    // Parse existing env variables
+    const envVars: Record<string, string> = {};
+    if (envContent) {
+      envContent.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+          const [key, ...valueParts] = trimmed.split('=');
+          if (key && valueParts.length > 0) {
+            envVars[key.trim()] = valueParts.join('=').trim();
+          }
+        }
+      });
+    }
+
+    // Update AI configuration
+    envVars['AI_PROVIDER'] = options.aiProvider;
+    if (options.aiModel) {
+      envVars['AI_MODEL'] = options.aiModel;
+    }
+
+    // Set the appropriate API key
+    if (options.aiProvider === 'anthropic') {
+      envVars['ANTHROPIC_API_KEY'] = options.apiKey!;
+    } else if (options.aiProvider === 'openai') {
+      envVars['OPENAI_API_KEY'] = options.apiKey!;
+    }
+
+    // Build new .env content
+    const newEnvContent = `# AI Configuration (Generated by playwright-ai CLI)
+# Last updated: ${new Date().toISOString()}
+
+AI_PROVIDER=${envVars['AI_PROVIDER']}
+${envVars['AI_MODEL'] ? `AI_MODEL=${envVars['AI_MODEL']}` : ''}
+
+# API Keys
+${envVars['ANTHROPIC_API_KEY'] ? `ANTHROPIC_API_KEY=${envVars['ANTHROPIC_API_KEY']}` : '# ANTHROPIC_API_KEY=sk-ant-your-key-here'}
+${envVars['OPENAI_API_KEY'] ? `OPENAI_API_KEY=${envVars['OPENAI_API_KEY']}` : '# OPENAI_API_KEY=sk-your-key-here'}
+`;
+
+    // Write .env file
+    await fs.writeFile(envFilePath, newEnvContent.trim() + '\n', 'utf-8');
+
+    spinner.succeed(chalk.green('CLI .env file created/updated'));
+
+  } catch (error) {
+    spinner.fail();
+    Logger.warning(`Failed to create CLI .env file: ${error}`);
+    Logger.info('You can manually create it later.');
   }
 }
 

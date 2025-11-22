@@ -8,6 +8,8 @@ export interface InitOptions {
   bdd: boolean;
   powerApps: boolean;
   aiProvider: 'anthropic' | 'openai' | 'none';
+  aiModel?: string;
+  apiKey?: string;
   directory?: string;
 }
 
