@@ -1,0 +1,24 @@
+# Core testing framework
+playwright==1.40.0
+behave==1.2.6
+pytest==7.4.3
+
+# AI providers (install based on your choice)
+anthropic==0.30.0
+# openai==1.6.1
+
+# Test data generation
+faker==20.1.0
+
+# Utilities
+python-dotenv==1.0.0
+pydantic==2.5.3
+
+# Reporting (optional)
+allure-behave==2.13.2
+# pytest-html==4.1.1
+
+# Screenshots and videos (handled by Playwright)
+
+# Additional utilities
+requests==2.31.0
