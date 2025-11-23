@@ -64,7 +64,7 @@ async function initializeFramework(cmdOptions: any): Promise<void> {
 async function promptForOptions(cmdOptions: any): Promise<InitOptions> {
   const questions: any[] = [];
 
-  // Project name
+  // Project name (BUG-009 fix - enhanced validation)
   if (!cmdOptions.projectName) {
     questions.push({
       type: 'input',
@@ -72,9 +72,37 @@ async function promptForOptions(cmdOptions: any): Promise<InitOptions> {
       message: 'Project name:',
       default: 'my-test-framework',
       validate: (input: string) => {
+        // Check basic pattern
         if (!/^[a-z0-9-_]+$/i.test(input)) {
           return 'Project name can only contain letters, numbers, hyphens, and underscores';
         }
+
+        // Check length
+        if (input.length > 100) {
+          return 'Project name too long (max 100 characters)';
+        }
+
+        if (input.length < 1) {
+          return 'Project name cannot be empty';
+        }
+
+        // Check for reserved names
+        const reservedNames = ['node_modules', '.git', 'dist', 'build', 'test', 'tests', 'src', 'lib'];
+        if (reservedNames.includes(input.toLowerCase())) {
+          return 'Project name is reserved. Please choose a different name.';
+        }
+
+        // Check for Windows reserved names
+        const windowsReserved = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+        if (windowsReserved.includes(input.toUpperCase())) {
+          return 'Project name is reserved on Windows. Please choose a different name.';
+        }
+
+        // Check for starting/ending with special characters
+        if (input.startsWith('-') || input.startsWith('_') || input.endsWith('-') || input.endsWith('_')) {
+          return 'Project name cannot start or end with hyphens or underscores';
+        }
+
         return true;
       }
     });
