@@ -220,7 +220,8 @@ function generateSimpleBDD(actions: any[], scenarioName: string): BDDOutput {
     steps: stepDefs,
     locators,
     testData,
-    helpers: []
+    helpers: [],
+    pageObjects: {}
   };
 }
 
@@ -264,6 +265,15 @@ async function writeOutputFiles(
       spinner.text = `Created: ${stepsFile}`;
     }
 
+    // Write page objects if provided
+    if (bddOutput.pageObjects && Object.keys(bddOutput.pageObjects).length > 0) {
+      for (const [pageName, pageCode] of Object.entries(bddOutput.pageObjects)) {
+        const pageFile = path.join(outputDir, 'pages', `${pageName}.py`);
+        await FileUtils.writeFile(pageFile, pageCode);
+        spinner.text = `Created: ${pageFile}`;
+      }
+    }
+
     spinner.succeed('All files created');
 
   } catch (error) {
@@ -278,7 +288,8 @@ function displayGeneratedFiles(scenarioName: string): void {
     `features/${scenarioName}.feature`,
     `config/${scenarioName}_locators.json`,
     `fixtures/${scenarioName}_data.json`,
-    `steps/${scenarioName}_steps.py (if needed)`
+    `steps/${scenarioName}_steps.py`,
+    `pages/*_page.py (page objects if detected)`
   ]);
 
   Logger.newline();

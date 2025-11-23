@@ -261,7 +261,8 @@ Generate a well-structured BDD scenario with:
           steps: result.steps || '',
           locators: result.locators || {},
           testData: result.testData || {},
-          helpers: result.helpers || []
+          helpers: result.helpers || [],
+          pageObjects: result.pageObjects || {}
         };
 
       } else {
@@ -300,7 +301,8 @@ Generate a well-structured BDD scenario with:
           steps: result.steps || '',
           locators: result.locators || {},
           testData: result.testData || {},
-          helpers: result.helpers || []
+          helpers: result.helpers || [],
+          pageObjects: result.pageObjects || {}
         };
       }
     } catch (error) {

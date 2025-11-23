@@ -1,6 +1,12 @@
 """
 Common step definitions
 Reusable steps that can be used across all scenarios
+
+This file demonstrates both:
+1. Using Page Object Model pattern (recommended for maintainability)
+2. Using helpers directly (for quick prototyping)
+
+For production tests, prefer using Page Objects to encapsulate page-specific logic.
 """
 
 from behave import given, when, then, step
@@ -9,6 +15,15 @@ from helpers.healing_locator import HealingLocator
 from helpers.screenshot_manager import ScreenshotManager
 from helpers.data_generator import TestDataGenerator
 import os
+
+# Import page objects for POM-based steps
+try:
+    from pages.login_page import LoginPage
+    from pages.dashboard_page import DashboardPage
+except ImportError:
+    # Page objects not available yet
+    LoginPage = None
+    DashboardPage = None
 
 
 # Navigation steps
@@ -222,26 +237,67 @@ def step_wait_for_element(context, element):
     WaitManager.smart_wait(context.page, locator, 'visible')
 
 
-# Authentication steps (using AuthHelper)
+# Authentication steps (using Page Object Model - RECOMMENDED)
 
 @given('I am logged in')
 @given('I am authenticated')
 def step_user_is_logged_in(context):
-    """Ensure user is logged in"""
-    from helpers.auth_helper import AuthHelper
+    """
+    Ensure user is logged in using Page Object Model
 
-    if not AuthHelper.is_authenticated(context.page):
+    This demonstrates POM usage - login logic is encapsulated in LoginPage
+    """
+    if LoginPage:
+        # Using Page Object Model (recommended)
+        login_page = LoginPage(context.page)
         test_user = os.getenv('TEST_USER')
         test_password = os.getenv('TEST_PASSWORD')
-        AuthHelper.authenticate(context.page, test_user, test_password)
+
+        if test_user and test_password:
+            login_page.go_to_login()
+            login_page.login(test_user, test_password)
+    else:
+        # Fallback to AuthHelper if page objects not available
+        from helpers.auth_helper import AuthHelper
+        if not AuthHelper.is_authenticated(context.page):
+            test_user = os.getenv('TEST_USER')
+            test_password = os.getenv('TEST_PASSWORD')
+            AuthHelper.authenticate(context.page, test_user, test_password)
 
 
 @when('I log out')
 @when('I sign out')
 def step_logout(context):
-    """Logout current user"""
-    from helpers.auth_helper import AuthHelper
-    AuthHelper.logout(context.page)
+    """Logout current user using Page Object Model"""
+    if DashboardPage:
+        # Using Page Object Model (recommended)
+        dashboard = DashboardPage(context.page)
+        dashboard.logout()
+    else:
+        # Fallback to AuthHelper
+        from helpers.auth_helper import AuthHelper
+        AuthHelper.logout(context.page)
+
+
+# Example: Login using Page Object Model
+@when('I login with username "{username}" and password "{password}"')
+def step_login_with_credentials(context, username, password):
+    """
+    Login using Page Object Model
+
+    This demonstrates how to use page objects in step definitions
+    """
+    if LoginPage:
+        login_page = LoginPage(context.page)
+        login_page.go_to_login()
+        login_page.login(username, password)
+    else:
+        # Fallback: direct interaction with page
+        context.page.goto(f"{context.app_url}/login")
+        context.page.fill('input[name="email"]', username)
+        context.page.fill('input[name="password"]', password)
+        context.page.click('button:has-text("Login")')
+        WaitManager.wait_for_power_apps_load(context.page)
 
 
 # Screenshot steps
