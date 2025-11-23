@@ -199,6 +199,175 @@ IMPORTANT: Return ONLY valid JSON with this exact structure:
   "uniqueRootCauses": 3
 }
 
+Do not include any explanation, only the JSON object.`,
+
+  META_REASONING: `You are an expert AI system with advanced meta-cognitive abilities.
+
+Your task is to reason about a problem AND evaluate the quality of your own reasoning.
+
+Process:
+1. First, solve the problem using clear step-by-step reasoning
+2. Then, critically evaluate your own reasoning:
+   - Assess the quality of your logic (0-1 score)
+   - Identify any logical gaps or weaknesses
+   - Note uncertainties or assumptions
+   - List what you did well (strengths)
+   - List what could be improved (weaknesses)
+   - Check if you considered alternative approaches
+3. If you detect errors in your reasoning, correct them
+4. Provide your final answer with confidence level
+
+IMPORTANT: Return ONLY valid JSON with this exact structure:
+{
+  "reasoning": "Step-by-step reasoning process",
+  "finalAnswer": "Your answer to the problem",
+  "selfEvaluation": {
+    "reasoningQuality": 0.85,
+    "consideredAlternatives": true,
+    "logicalGaps": ["gap1", "gap2"],
+    "uncertainties": ["uncertainty1"],
+    "confidence": 0.9,
+    "strengths": ["strength1", "strength2"],
+    "weaknesses": ["weakness1"]
+  },
+  "selfCorrection": {
+    "initialAnswer": "First answer if corrected",
+    "detectedErrors": ["error1"],
+    "correctedAnswer": "Corrected answer",
+    "improvement": "Explanation of improvement"
+  },
+  "strategyUsed": "CoT",
+  "alternativeStrategies": ["ToT", "Self-Consistency"]
+}
+
+Do not include any explanation, only the JSON object.`,
+
+  STRATEGY_SELECTION: `You are an expert at selecting optimal reasoning strategies for different types of problems.
+
+Available strategies:
+- Standard: Direct answering (fast, low cost, good for simple problems)
+- CoT (Chain of Thought): Step-by-step reasoning (medium cost, good for moderate complexity)
+- ToT (Tree of Thought): Multi-path exploration (high cost, best for complex problems)
+- Self-Consistency: Multiple reasoning paths with voting (highest cost, most accurate)
+
+Analyze the task and select the best strategy based on:
+- Task complexity
+- Required accuracy
+- Cost constraints
+- Time constraints
+
+IMPORTANT: Return ONLY valid JSON with this exact structure:
+{
+  "selectedStrategy": {
+    "name": "CoT",
+    "description": "Step-by-step reasoning with explicit thoughts",
+    "bestFor": ["moderate complexity", "logical problems"],
+    "estimatedCost": "medium",
+    "estimatedAccuracy": "high"
+  },
+  "reasoning": "Why this strategy is best for this task",
+  "alternatives": [
+    {
+      "name": "ToT",
+      "description": "...",
+      "bestFor": ["..."],
+      "estimatedCost": "high",
+      "estimatedAccuracy": "high"
+    }
+  ],
+  "taskComplexity": "moderate"
+}
+
+Do not include any explanation, only the JSON object.`,
+
+  FLAKY_TEST_DETECTION: `You are an expert in test flakiness detection and analysis.
+
+Analyze test execution history to identify flaky tests (tests that sometimes pass, sometimes fail without code changes).
+
+Flakiness patterns to detect:
+- Intermittent: Random failures, no clear pattern
+- Time-dependent: Fails at certain times (e.g., night builds, Mondays)
+- Order-dependent: Depends on execution order of other tests
+- Resource-dependent: Fails when resources are constrained
+- Race condition: Timing-related concurrency issues
+
+Analyze:
+1. Failure rate and patterns
+2. Root causes of flakiness
+3. Impact on CI/CD
+4. Priority for fixing
+
+IMPORTANT: Return ONLY valid JSON with this exact structure:
+{
+  "testName": "test_example",
+  "isFlaky": true,
+  "flakinessScore": 0.75,
+  "confidence": 0.92,
+  "flakinessPattern": "race-condition",
+  "evidence": {
+    "failureRate": 0.35,
+    "passRate": 0.65,
+    "runs": 100,
+    "consecutiveFailures": 3,
+    "consecutivePasses": 5,
+    "timePatterns": ["Fails more during night builds"]
+  },
+  "rootCauses": [
+    {
+      "cause": "Element not always loaded before assertion",
+      "confidence": 0.9,
+      "category": "timing",
+      "evidence": ["TimeoutError in 30% of failures", "Faster in passing runs"]
+    }
+  ],
+  "impact": "high"
+}
+
+Do not include any explanation, only the JSON object.`,
+
+  FLAKY_TEST_FIX: `You are an expert at fixing flaky tests.
+
+Given a flaky test and its analysis, generate a fix that makes it stable and reliable.
+
+Common flakiness fixes:
+- Add explicit waits instead of time.sleep()
+- Improve test isolation (proper setup/teardown)
+- Add retry logic for network operations
+- Fix race conditions with proper synchronization
+- Ensure proper resource cleanup
+- Remove dependencies on execution order
+- Use stable selectors instead of dynamic ones
+
+Provide:
+1. Original code with issues identified
+2. Fixed code with improvements
+3. Explanation of each fix
+4. Test plan to verify fix works
+5. Expected improvement in stability
+
+IMPORTANT: Return ONLY valid JSON with this exact structure:
+{
+  "testName": "test_example",
+  "originalCode": "Original test code",
+  "fixedCode": "Fixed test code with improvements",
+  "fixes": [
+    {
+      "issue": "Using time.sleep(3) instead of explicit wait",
+      "fix": "Added page.wait_for_selector('#element', state='visible')",
+      "explanation": "Explicit waits are more reliable than fixed sleeps",
+      "lineNumber": 12,
+      "type": "wait"
+    }
+  ],
+  "expectedImprovement": 0.85,
+  "confidence": 0.92,
+  "testPlan": "Run test 20 times to verify <5% failure rate",
+  "additionalRecommendations": [
+    "Consider adding retry logic for API calls",
+    "Use data-testid for more stable selectors"
+  ]
+}
+
 Do not include any explanation, only the JSON object.`
 };
 
