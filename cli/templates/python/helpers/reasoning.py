@@ -10,8 +10,18 @@ These strategies enhance AI capabilities for complex test scenarios.
 
 import os
 import json
+import time
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from opentelemetry import trace
+from opentelemetry.trace import StatusCode
+
+try:
+    from .phoenix_tracer import PhoenixTracer, get_tracer, create_llm_span_attributes, add_llm_response_attributes
+except ImportError:
+    # Tracing is optional
+    PhoenixTracer = None
+    get_tracer = None
 
 
 @dataclass
@@ -69,6 +79,15 @@ class ChainOfThought:
         """
         self.ai_client = ai_client
         self.model = model or os.getenv('AI_MODEL', 'claude-sonnet-4-5-20250929')
+
+        # Initialize Phoenix tracing if available
+        if PhoenixTracer and not PhoenixTracer.is_initialized():
+            try:
+                PhoenixTracer.initialize()
+            except Exception as e:
+                print(f"Warning: Failed to initialize Phoenix tracing: {e}")
+
+        self.tracer = get_tracer() if get_tracer else None
 
     def reason(
         self,
@@ -131,32 +150,79 @@ Begin your step-by-step analysis:"""
     def _call_ai(self, prompt: str) -> str:
         """Call AI client with the prompt"""
         ai_provider = os.getenv('AI_PROVIDER', 'anthropic')
+        start_time = time.time()
 
-        if ai_provider == 'anthropic':
-            from anthropic import Anthropic
-            client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+        # Create span for tracing
+        span_context = self.tracer.start_as_current_span(
+            f'{ai_provider}.chainOfThought',
+            attributes=create_llm_span_attributes(ai_provider, self.model, prompt, 4000) if create_llm_span_attributes else {}
+        ) if self.tracer else None
 
-            response = client.messages.create(
-                model=self.model,
-                max_tokens=4000,
-                messages=[{"role": "user", "content": prompt}]
-            )
+        try:
+            if ai_provider == 'anthropic':
+                from anthropic import Anthropic
+                client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
-            return response.content[0].text
+                response = client.messages.create(
+                    model=self.model,
+                    max_tokens=4000,
+                    messages=[{"role": "user", "content": prompt}]
+                )
 
-        elif ai_provider == 'openai':
-            from openai import OpenAI
-            client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+                response_text = response.content[0].text
 
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}]
-            )
+                # Add tracing attributes
+                if span_context and add_llm_response_attributes:
+                    span = trace.get_current_span()
+                    add_llm_response_attributes(
+                        span,
+                        response_text,
+                        response.usage.input_tokens if hasattr(response, 'usage') else None,
+                        response.usage.output_tokens if hasattr(response, 'usage') else None
+                    )
+                    span.set_attribute('llm.latency_ms', (time.time() - start_time) * 1000)
+                    span.set_status(StatusCode.OK)
 
-            return response.choices[0].message.content
+                return response_text
 
-        else:
-            raise ValueError(f"Unsupported AI provider: {ai_provider}")
+            elif ai_provider == 'openai':
+                from openai import OpenAI
+                client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+
+                response_text = response.choices[0].message.content
+
+                # Add tracing attributes
+                if span_context and add_llm_response_attributes:
+                    span = trace.get_current_span()
+                    add_llm_response_attributes(
+                        span,
+                        response_text,
+                        response.usage.prompt_tokens if hasattr(response, 'usage') else None,
+                        response.usage.completion_tokens if hasattr(response, 'usage') else None
+                    )
+                    span.set_attribute('llm.latency_ms', (time.time() - start_time) * 1000)
+                    span.set_status(StatusCode.OK)
+
+                return response_text
+
+            else:
+                raise ValueError(f"Unsupported AI provider: {ai_provider}")
+
+        except Exception as e:
+            # Record error in span
+            if span_context:
+                span = trace.get_current_span()
+                span.set_status(StatusCode.ERROR, str(e))
+                span.record_exception(e)
+            raise
+        finally:
+            if span_context:
+                span_context.__exit__(None, None, None)
 
     def _parse_cot_response(self, response_text: str) -> ChainOfThoughtResult:
         """Parse AI response into ChainOfThoughtResult"""

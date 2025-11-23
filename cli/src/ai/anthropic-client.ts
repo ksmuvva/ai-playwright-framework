@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { trace, context, SpanStatusCode } from '@opentelemetry/api';
 import {
   AIClient,
   BDDOutput,
@@ -20,6 +21,7 @@ import {
 } from './prompts';
 import { Logger } from '../utils/logger';
 import { createReasoningEngine, ChainOfThought, TreeOfThought } from './reasoning';
+import { PhoenixTracer } from '../tracing/phoenix-tracer';
 
 // Load environment variables from CLI root
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -29,6 +31,7 @@ export class AnthropicClient implements AIClient {
   private model: string;
   private chainOfThought: ChainOfThought;
   private treeOfThought: TreeOfThought;
+  private tracer = trace.getTracer('ai-playwright-framework', '1.0.0');
 
   // Configuration constants (BUG-005, BUG-006 fixes)
   private readonly DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
@@ -54,6 +57,15 @@ export class AnthropicClient implements AIClient {
     const reasoningEngine = createReasoningEngine(this.client, this.model);
     this.chainOfThought = reasoningEngine.chainOfThought;
     this.treeOfThought = reasoningEngine.treeOfThought;
+
+    // Initialize Phoenix tracing if enabled
+    if (process.env.ENABLE_PHOENIX_TRACING !== 'false') {
+      try {
+        PhoenixTracer.initialize();
+      } catch (error) {
+        Logger.warning(`Failed to initialize Phoenix tracing: ${error}`);
+      }
+    }
 
     Logger.info(`AnthropicClient initialized with model: ${this.model}`);
   }
@@ -125,6 +137,65 @@ export class AnthropicClient implements AIClient {
   }
 
   /**
+   * Wrapper for LLM API calls with Phoenix tracing
+   */
+  private async tracedLLMCall<T>(
+    spanName: string,
+    prompt: string,
+    fn: () => Promise<T>,
+    metadata?: Record<string, any>
+  ): Promise<T> {
+    const startTime = Date.now();
+
+    return this.tracer.startActiveSpan(spanName, async (span) => {
+      try {
+        // Set span attributes
+        span.setAttribute('llm.provider', 'anthropic');
+        span.setAttribute('llm.model', this.model);
+        span.setAttribute('llm.request.prompt', prompt.substring(0, 1000)); // Truncate for storage
+
+        if (metadata) {
+          Object.entries(metadata).forEach(([key, value]) => {
+            span.setAttribute(`llm.${key}`, value);
+          });
+        }
+
+        // Execute the LLM call
+        const result = await fn();
+
+        // Extract token usage if available
+        if (result && typeof result === 'object' && 'usage' in result) {
+          const usage = (result as any).usage;
+          if (usage) {
+            span.setAttribute('llm.usage.prompt_tokens', usage.input_tokens || 0);
+            span.setAttribute('llm.usage.completion_tokens', usage.output_tokens || 0);
+            span.setAttribute('llm.usage.total_tokens', (usage.input_tokens || 0) + (usage.output_tokens || 0));
+          }
+        }
+
+        // Record latency
+        const latency = Date.now() - startTime;
+        span.setAttribute('llm.latency_ms', latency);
+
+        // Mark span as successful
+        span.setStatus({ code: SpanStatusCode.OK });
+
+        return result;
+      } catch (error: any) {
+        // Record error in span
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: error.message || 'Unknown error'
+        });
+        span.recordException(error);
+        throw error;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  /**
    * Generate BDD scenario from Playwright recording
    * Uses Chain of Thought reasoning for better scenario understanding
    */
@@ -158,20 +229,24 @@ Generate a well-structured BDD scenario with:
         // Now use the reasoning to generate the actual BDD output
         const prompt = buildBDDConversionPrompt(recording, scenarioName, cotResult.reasoning);
 
-        const response = await this.retryWithBackoff(
-          () => this.client.messages.create({
-            model: this.model,
-            max_tokens: 4000,
-            timeout: this.DEFAULT_TIMEOUT_MS,
-            messages: [
-              {
-                role: 'user',
-                content: prompt
-              }
-            ]
-          }),
-          'BDD scenario generation with reasoning'
-        );
+        const response = await this.tracedLLMCall(
+          'anthropic.generateBDDScenario.withReasoning',
+          prompt,
+          () => this.retryWithBackoff(
+            () => this.client.messages.create({
+              model: this.model,
+              max_tokens: 4000,
+              messages: [
+                {
+                  role: 'user',
+                  content: prompt
+                }
+              ]
+            }, { timeout: this.DEFAULT_TIMEOUT_MS }),
+            'BDD scenario generation with reasoning'
+          ),
+          { max_tokens: 4000, use_reasoning: true }
+        ) as Anthropic.Message;
 
         const content = response.content[0];
         if (content.type !== 'text') {
@@ -193,20 +268,24 @@ Generate a well-structured BDD scenario with:
         // Standard generation without reasoning
         const prompt = buildBDDConversionPrompt(recording, scenarioName);
 
-        const response = await this.retryWithBackoff(
-          () => this.client.messages.create({
-            model: this.model,
-            max_tokens: 4000,
-            timeout: this.DEFAULT_TIMEOUT_MS,
-            messages: [
-              {
-                role: 'user',
-                content: prompt
-              }
-            ]
-          }),
-          'BDD scenario generation'
-        );
+        const response = await this.tracedLLMCall(
+          'anthropic.generateBDDScenario',
+          prompt,
+          () => this.retryWithBackoff(
+            () => this.client.messages.create({
+              model: this.model,
+              max_tokens: 4000,
+              messages: [
+                {
+                  role: 'user',
+                  content: prompt
+                }
+              ]
+            }, { timeout: this.DEFAULT_TIMEOUT_MS }),
+            'BDD scenario generation'
+          ),
+          { max_tokens: 4000, use_reasoning: false }
+        ) as Anthropic.Message;
 
         const content = response.content[0];
         if (content.type !== 'text') {
@@ -241,20 +320,24 @@ Generate a well-structured BDD scenario with:
         pageHtml: context.pageHtml
       });
 
-      const response = await this.retryWithBackoff(
-        () => this.client.messages.create({
-          model: this.model,
-          max_tokens: 1000,
-          timeout: this.DEFAULT_TIMEOUT_MS,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        }),
-        'Locator healing'
-      );
+      const response = await this.tracedLLMCall(
+        'anthropic.healLocator',
+        prompt,
+        () => this.retryWithBackoff(
+          () => this.client.messages.create({
+            model: this.model,
+            max_tokens: 1000,
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ]
+          }, { timeout: this.DEFAULT_TIMEOUT_MS }),
+          'Locator healing'
+        ),
+        { max_tokens: 1000, failed_locator: context.failedLocator }
+      ) as Anthropic.Message;
 
       const content = response.content[0];
       if (content.type !== 'text') {
@@ -281,20 +364,24 @@ Generate a well-structured BDD scenario with:
     try {
       const prompt = buildDataGenerationPrompt(schema);
 
-      const response = await this.retryWithBackoff(
-        () => this.client.messages.create({
-          model: this.model,
-          max_tokens: 2000,
-          timeout: this.DEFAULT_TIMEOUT_MS,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        }),
-        'Test data generation'
-      );
+      const response = await this.tracedLLMCall(
+        'anthropic.generateTestData',
+        prompt,
+        () => this.retryWithBackoff(
+          () => this.client.messages.create({
+            model: this.model,
+            max_tokens: 2000,
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ]
+          }, { timeout: this.DEFAULT_TIMEOUT_MS }),
+          'Test data generation'
+        ),
+        { max_tokens: 2000 }
+      ) as Anthropic.Message;
 
       const content = response.content[0];
       if (content.type !== 'text') {
@@ -320,20 +407,24 @@ ${JSON.stringify(testLog, null, 2)}
 
 Analyze and suggest wait optimizations.`;
 
-      const response = await this.retryWithBackoff(
-        () => this.client.messages.create({
-          model: this.model,
-          max_tokens: 2000,
-          timeout: this.DEFAULT_TIMEOUT_MS,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        }),
-        'Wait optimization'
-      );
+      const response = await this.tracedLLMCall(
+        'anthropic.optimizeWaits',
+        prompt,
+        () => this.retryWithBackoff(
+          () => this.client.messages.create({
+            model: this.model,
+            max_tokens: 2000,
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ]
+          }, { timeout: this.DEFAULT_TIMEOUT_MS }),
+          'Wait optimization'
+        ),
+        { max_tokens: 2000 }
+      ) as Anthropic.Message;
 
       const content = response.content[0];
       if (content.type !== 'text') {
@@ -359,20 +450,24 @@ ${JSON.stringify(scenarios, null, 2)}
 
 Analyze patterns and suggest optimizations.`;
 
-      const response = await this.retryWithBackoff(
-        () => this.client.messages.create({
-          model: this.model,
-          max_tokens: 3000,
-          timeout: this.DEFAULT_TIMEOUT_MS,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        }),
-        'Pattern analysis'
-      );
+      const response = await this.tracedLLMCall(
+        'anthropic.analyzePatterns',
+        prompt,
+        () => this.retryWithBackoff(
+          () => this.client.messages.create({
+            model: this.model,
+            max_tokens: 3000,
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ]
+          }, { timeout: this.DEFAULT_TIMEOUT_MS }),
+          'Pattern analysis'
+        ),
+        { max_tokens: 3000, scenario_count: scenarios.length }
+      ) as Anthropic.Message;
 
       const content = response.content[0];
       if (content.type !== 'text') {
