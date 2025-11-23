@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import inquirer from 'inquirer';
 import ora from 'ora';
@@ -15,6 +15,7 @@ export function createRecordCommand(): Command {
     .description('Record a new test scenario using Playwright')
     .option('-u, --url <url>', 'Starting URL for recording')
     .option('-s, --scenario-name <name>', 'Name for the scenario')
+    .option('-b, --browser <browser>', 'Browser to use (chromium, firefox, webkit)', 'chromium')
     .option('--convert-to-bdd', 'Auto-convert to BDD after recording', false)
     .option('--generate-data', 'Generate test data schema from recording', false)
     .action(async (options) => {
@@ -93,9 +94,17 @@ async function promptForRecordOptions(cmdOptions: any): Promise<RecordOptions> {
 
   const answers = await inquirer.prompt(questions);
 
+  // Validate browser option (BUG-017 fix)
+  const browser = cmdOptions.browser || 'chromium';
+  const validBrowsers = ['chromium', 'firefox', 'webkit'];
+  if (!validBrowsers.includes(browser)) {
+    throw new Error(`Invalid browser: ${browser}. Must be one of: ${validBrowsers.join(', ')}`);
+  }
+
   return {
     url: cmdOptions.url || answers.url,
     scenarioName: cmdOptions.scenarioName || answers.scenarioName,
+    browser: browser,
     convertToBdd: cmdOptions.convertToBdd || false,
     generateData: cmdOptions.generateData || false
   };
@@ -132,10 +141,36 @@ async function launchRecorder(options: RecordOptions): Promise<string> {
     spinner.text = 'Recorder is now open. Perform your test actions in the browser.';
     spinner.text += '\nClose the browser when done.';
 
-    // Launch Playwright codegen
-    const command = `playwright codegen ${options.url} --target python --output ${outputFile}`;
+    // Launch Playwright codegen using spawn to prevent command injection (SEC-002 fix)
+    await new Promise<void>((resolve, reject) => {
+      const args = [
+        'codegen',
+        options.url,
+        '--browser',
+        options.browser || 'chromium',
+        '--target',
+        'python',
+        '--output',
+        outputFile
+      ];
 
-    await execAsync(command);
+      const childProcess = spawn('playwright', args, {
+        stdio: 'inherit',
+        shell: false // Critical: disable shell to prevent command injection
+      });
+
+      childProcess.on('error', (error) => {
+        reject(new Error(`Failed to launch Playwright: ${error.message}`));
+      });
+
+      childProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Playwright exited with code ${code}`));
+        }
+      });
+    });
 
     spinner.succeed('Recording completed');
 

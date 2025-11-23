@@ -9,6 +9,28 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Logger } from '../utils/logger';
 
+// ===== Constants (QUALITY-004 fix) =====
+
+/**
+ * Default maximum number of reasoning steps for Chain of Thought
+ */
+const DEFAULT_MAX_REASONING_STEPS = 5;
+
+/**
+ * Default number of branches to explore in Tree of Thought
+ */
+const DEFAULT_BRANCHING_FACTOR = 3;
+
+/**
+ * Default maximum depth for Tree of Thought exploration
+ */
+const DEFAULT_MAX_DEPTH = 3;
+
+/**
+ * Bonus multiplier for deeper reasoning paths
+ */
+const DEPTH_BONUS_MULTIPLIER = 0.1;
+
 // ===== Types =====
 
 export interface ReasoningStep {
@@ -69,7 +91,7 @@ export class ChainOfThought {
     context: string,
     config: ReasoningConfig = {}
   ): Promise<ChainOfThoughtResult> {
-    const maxSteps = config.maxSteps || 5;
+    const maxSteps = config.maxSteps || DEFAULT_MAX_REASONING_STEPS;
 
     const cotPrompt = this.buildCoTPrompt(prompt, context, maxSteps);
 
@@ -178,8 +200,8 @@ export class TreeOfThought {
     context: string,
     config: ReasoningConfig = {}
   ): Promise<TreeOfThoughtResult> {
-    const branchingFactor = config.branchingFactor || 3;
-    const maxDepth = config.maxDepth || 3;
+    const branchingFactor = config.branchingFactor || DEFAULT_BRANCHING_FACTOR;
+    const maxDepth = config.maxDepth || DEFAULT_MAX_DEPTH;
     const evaluationCriteria = config.evaluationCriteria || 'correctness and completeness';
 
     try {
@@ -331,7 +353,7 @@ Provide your response in JSON format:
     for (const path of paths) {
       // Calculate path score (average evaluation + depth bonus)
       const avgEval = path.reduce((sum, node) => sum + node.evaluation, 0) / path.length;
-      const depthBonus = path.length * 0.1; // Prefer deeper, more thorough reasoning
+      const depthBonus = path.length * DEPTH_BONUS_MULTIPLIER; // Prefer deeper, more thorough reasoning
       const score = avgEval + depthBonus;
 
       if (score > bestScore) {

@@ -16,6 +16,7 @@ export interface InitOptions {
 export interface RecordOptions {
   url: string;
   scenarioName: string;
+  browser?: string;
   convertToBdd: boolean;
   generateData: boolean;
 }

@@ -30,12 +30,20 @@ export class AnthropicClient implements AIClient {
   private chainOfThought: ChainOfThought;
   private treeOfThought: TreeOfThought;
 
+  // Configuration constants (BUG-005, BUG-006 fixes)
+  private readonly DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+  private readonly MAX_RETRIES = 3;
+  private readonly BASE_RETRY_DELAY_MS = 1000; // 1 second
+
   constructor(apiKey?: string, model?: string) {
     // Use provided API key or fallback to environment variable
     const key = apiKey || process.env.ANTHROPIC_API_KEY;
     if (!key) {
       throw new Error('Anthropic API key not provided. Please set ANTHROPIC_API_KEY in .env file or pass it to the constructor.');
     }
+
+    // Validate API key format
+    this.validateApiKey(key);
 
     // Use provided model or fallback to environment variable or default
     this.model = model || process.env.AI_MODEL || 'claude-sonnet-4-5-20250929';
@@ -48,6 +56,72 @@ export class AnthropicClient implements AIClient {
     this.treeOfThought = reasoningEngine.treeOfThought;
 
     Logger.info(`AnthropicClient initialized with model: ${this.model}`);
+  }
+
+  /**
+   * Validate API key format (BUG-002 fix)
+   */
+  private validateApiKey(key: string): void {
+    if (!key.startsWith('sk-ant-')) {
+      throw new Error('Invalid Anthropic API key format. Keys should start with "sk-ant-"');
+    }
+    if (key.length < 20) {
+      throw new Error('API key appears to be invalid (too short)');
+    }
+  }
+
+  /**
+   * Safely parse JSON from AI response, handling markdown-wrapped JSON (BUG-001 fix)
+   */
+  private safeParseJSON(jsonText: string): any {
+    try {
+      let cleanText = jsonText.trim();
+
+      // Remove markdown code blocks if present
+      if (cleanText.startsWith('```')) {
+        cleanText = cleanText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '');
+      }
+
+      const result = JSON.parse(cleanText);
+      return result;
+    } catch (error) {
+      Logger.error(`Failed to parse AI response: ${error}`);
+      Logger.error(`Raw response: ${jsonText.substring(0, 200)}...`);
+      throw new Error('Invalid AI response format. The AI returned malformed JSON.');
+    }
+  }
+
+  /**
+   * Retry a function with exponential backoff (BUG-006 fix)
+   */
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    context: string,
+    maxRetries: number = this.MAX_RETRIES
+  ): Promise<T> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+
+        // Don't retry on validation errors or client errors
+        if (error.status && error.status >= 400 && error.status < 500) {
+          throw error;
+        }
+
+        if (attempt < maxRetries - 1) {
+          const delay = this.BASE_RETRY_DELAY_MS * Math.pow(2, attempt);
+          Logger.warn(`${context} failed (attempt ${attempt + 1}/${maxRetries}). Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    Logger.error(`${context} failed after ${maxRetries} attempts`);
+    throw lastError;
   }
 
   /**
@@ -84,16 +158,20 @@ Generate a well-structured BDD scenario with:
         // Now use the reasoning to generate the actual BDD output
         const prompt = buildBDDConversionPrompt(recording, scenarioName, cotResult.reasoning);
 
-        const response = await this.client.messages.create({
-          model: this.model,
-          max_tokens: 4000,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        });
+        const response = await this.retryWithBackoff(
+          () => this.client.messages.create({
+            model: this.model,
+            max_tokens: 4000,
+            timeout: this.DEFAULT_TIMEOUT_MS,
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ]
+          }),
+          'BDD scenario generation with reasoning'
+        );
 
         const content = response.content[0];
         if (content.type !== 'text') {
@@ -101,7 +179,7 @@ Generate a well-structured BDD scenario with:
         }
 
         // Parse JSON response
-        const result = JSON.parse(content.text);
+        const result = this.safeParseJSON(content.text);
 
         return {
           feature: result.feature || '',
@@ -115,16 +193,20 @@ Generate a well-structured BDD scenario with:
         // Standard generation without reasoning
         const prompt = buildBDDConversionPrompt(recording, scenarioName);
 
-        const response = await this.client.messages.create({
-          model: this.model,
-          max_tokens: 4000,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        });
+        const response = await this.retryWithBackoff(
+          () => this.client.messages.create({
+            model: this.model,
+            max_tokens: 4000,
+            timeout: this.DEFAULT_TIMEOUT_MS,
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ]
+          }),
+          'BDD scenario generation'
+        );
 
         const content = response.content[0];
         if (content.type !== 'text') {
@@ -132,7 +214,7 @@ Generate a well-structured BDD scenario with:
         }
 
         // Parse JSON response
-        const result = JSON.parse(content.text);
+        const result = this.safeParseJSON(content.text);
 
         return {
           feature: result.feature || '',
@@ -159,23 +241,27 @@ Generate a well-structured BDD scenario with:
         pageHtml: context.pageHtml
       });
 
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 1000,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
-      });
+      const response = await this.retryWithBackoff(
+        () => this.client.messages.create({
+          model: this.model,
+          max_tokens: 1000,
+          timeout: this.DEFAULT_TIMEOUT_MS,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        }),
+        'Locator healing'
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
         throw new Error('Unexpected response type from AI');
       }
 
-      const result = JSON.parse(content.text);
+      const result = this.safeParseJSON(content.text);
 
       return {
         locator: result.locator || '',
@@ -195,23 +281,27 @@ Generate a well-structured BDD scenario with:
     try {
       const prompt = buildDataGenerationPrompt(schema);
 
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 2000,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
-      });
+      const response = await this.retryWithBackoff(
+        () => this.client.messages.create({
+          model: this.model,
+          max_tokens: 2000,
+          timeout: this.DEFAULT_TIMEOUT_MS,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        }),
+        'Test data generation'
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
         throw new Error('Unexpected response type from AI');
       }
 
-      return JSON.parse(content.text);
+      return this.safeParseJSON(content.text);
     } catch (error) {
       Logger.error(`Failed to generate test data: ${error}`);
       throw error;
@@ -230,23 +320,27 @@ ${JSON.stringify(testLog, null, 2)}
 
 Analyze and suggest wait optimizations.`;
 
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 2000,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
-      });
+      const response = await this.retryWithBackoff(
+        () => this.client.messages.create({
+          model: this.model,
+          max_tokens: 2000,
+          timeout: this.DEFAULT_TIMEOUT_MS,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        }),
+        'Wait optimization'
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
         throw new Error('Unexpected response type from AI');
       }
 
-      return JSON.parse(content.text);
+      return this.safeParseJSON(content.text);
     } catch (error) {
       Logger.error(`Failed to optimize waits: ${error}`);
       throw error;
@@ -265,23 +359,27 @@ ${JSON.stringify(scenarios, null, 2)}
 
 Analyze patterns and suggest optimizations.`;
 
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 3000,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
-      });
+      const response = await this.retryWithBackoff(
+        () => this.client.messages.create({
+          model: this.model,
+          max_tokens: 3000,
+          timeout: this.DEFAULT_TIMEOUT_MS,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        }),
+        'Pattern analysis'
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
         throw new Error('Unexpected response type from AI');
       }
 
-      return JSON.parse(content.text);
+      return this.safeParseJSON(content.text);
     } catch (error) {
       Logger.error(`Failed to analyze patterns: ${error}`);
       throw error;

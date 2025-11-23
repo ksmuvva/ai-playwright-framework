@@ -75,7 +75,7 @@ export class PythonGenerator {
   }
 
   /**
-   * Copy helper files
+   * Copy helper files (PERF-001 fix - parallelized)
    */
   private async copyHelpers(projectDir: string): Promise<void> {
     Logger.step('Copying helper files...');
@@ -88,40 +88,46 @@ export class PythonGenerator {
       'screenshot_manager.py'
     ];
 
-    for (const helper of helpers) {
-      const src = path.join(this.templateDir, 'helpers', helper);
-      const dest = path.join(projectDir, 'helpers', helper);
-      await FileUtils.copyFile(src, dest);
-    }
-
-    // Create __init__.py for helpers package
-    await FileUtils.writeFile(
-      path.join(projectDir, 'helpers', '__init__.py'),
-      '# Helper utilities\n'
-    );
+    // Parallelize file copy operations
+    await Promise.all([
+      ...helpers.map(helper =>
+        FileUtils.copyFile(
+          path.join(this.templateDir, 'helpers', helper),
+          path.join(projectDir, 'helpers', helper)
+        )
+      ),
+      // Create __init__.py for helpers package
+      FileUtils.writeFile(
+        path.join(projectDir, 'helpers', '__init__.py'),
+        '# Helper utilities\n'
+      )
+    ]);
 
     Logger.success('Helper files copied');
   }
 
   /**
-   * Copy step files
+   * Copy step files (PERF-001 fix - parallelized)
    */
   private async copyStepFiles(projectDir: string): Promise<void> {
     Logger.step('Copying step definitions...');
 
     const stepFiles = ['environment.py', 'common_steps.py'];
 
-    for (const file of stepFiles) {
-      const src = path.join(this.templateDir, 'steps', file);
-      const dest = path.join(projectDir, 'steps', file);
-      await FileUtils.copyFile(src, dest);
-    }
-
-    // Create __init__.py for steps package
-    await FileUtils.writeFile(
-      path.join(projectDir, 'steps', '__init__.py'),
-      '# Step definitions\n'
-    );
+    // Parallelize file copy operations
+    await Promise.all([
+      ...stepFiles.map(file =>
+        FileUtils.copyFile(
+          path.join(this.templateDir, 'steps', file),
+          path.join(projectDir, 'steps', file)
+        )
+      ),
+      // Create __init__.py for steps package
+      FileUtils.writeFile(
+        path.join(projectDir, 'steps', '__init__.py'),
+        '# Step definitions\n'
+      )
+    ]);
 
     Logger.success('Step files copied');
   }
