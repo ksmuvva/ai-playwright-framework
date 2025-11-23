@@ -498,6 +498,50 @@ class PowerAppsDataGenerator(TestDataGenerator):
 
 ---
 
+## 📊 LLM Observability with Arize Phoenix
+
+This framework integrates **Arize Phoenix** for comprehensive LLM observability and tracing. Monitor all AI interactions, token usage, and performance metrics in real-time.
+
+### Quick Setup
+
+1. **Enable Phoenix Tracing**
+
+```bash
+# In your .env file
+ENABLE_PHOENIX_TRACING=true
+PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
+PHOENIX_LAUNCH_UI=true
+```
+
+2. **Access Phoenix UI**
+
+```bash
+# Phoenix automatically launches when using Python helpers
+# Access at: http://localhost:6006
+```
+
+### What Phoenix Tracks
+
+- ✅ **All LLM API calls** (Anthropic Claude, OpenAI)
+- ✅ **Token usage** (input, output, total tokens)
+- ✅ **Response latency** (milliseconds per request)
+- ✅ **Request/response payloads**
+- ✅ **Error tracking** and retry attempts
+- ✅ **Chain of Thought** and **Tree of Thought** reasoning traces
+
+### Benefits
+
+1. **Cost Optimization**: Track token usage to optimize prompts and reduce costs
+2. **Performance Monitoring**: Identify slow LLM calls and optimize wait times
+3. **Debugging**: View full request/response traces for failed tests
+4. **Analytics**: Understand LLM usage patterns and trends
+
+### Learn More
+
+See [PHOENIX_INTEGRATION.md](./PHOENIX_INTEGRATION.md) for complete documentation, advanced configuration, and troubleshooting.
+
+---
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
