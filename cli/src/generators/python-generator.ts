@@ -28,6 +28,9 @@ export class PythonGenerator {
     // Copy step files
     await this.copyStepFiles(projectDir);
 
+    // Copy page object files
+    await this.copyPageObjects(projectDir);
+
     // Generate configuration files
     await this.generateConfigFiles(projectDir, options);
 
@@ -130,6 +133,32 @@ export class PythonGenerator {
     ]);
 
     Logger.success('Step files copied');
+  }
+
+  /**
+   * Copy page object files
+   */
+  private async copyPageObjects(projectDir: string): Promise<void> {
+    Logger.step('Copying page object files...');
+
+    const pageFiles = [
+      'base_page.py',
+      'login_page.py',
+      'dashboard_page.py',
+      '__init__.py'
+    ];
+
+    // Parallelize file copy operations
+    await Promise.all(
+      pageFiles.map(file =>
+        FileUtils.copyFile(
+          path.join(this.templateDir, 'pages', file),
+          path.join(projectDir, 'pages', file)
+        )
+      )
+    );
+
+    Logger.success('Page object files copied');
   }
 
   /**

@@ -42,6 +42,7 @@ export interface BDDOutput {
   locators: Record<string, string>;  // Locator mappings
   testData: Record<string, any>;     // Test data schema
   helpers: string[];      // Suggested helper functions
+  pageObjects: Record<string, string>;  // Page object classes (page_name -> class code)
 }
 
 export interface DataSchema {

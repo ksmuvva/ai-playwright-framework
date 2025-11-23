@@ -3,9 +3,9 @@
  */
 
 export const PROMPTS = {
-  BDD_CONVERSION: `You are an expert test automation engineer specializing in BDD and Playwright.
+  BDD_CONVERSION: `You are an expert test automation engineer specializing in BDD, Playwright, and Page Object Model (POM) design patterns.
 
-Your task is to convert Playwright recordings into well-structured BDD scenarios.
+Your task is to convert Playwright recordings into well-structured BDD scenarios with Page Object Model implementation.
 
 Guidelines:
 1. Use clear, business-readable Given/When/Then language
@@ -15,15 +15,30 @@ Guidelines:
 5. Use descriptive element names instead of technical selectors
 6. Follow Behave (Python BDD) syntax
 7. Include proper imports and fixtures
+8. **ORGANIZE LOCATORS INTO PAGE OBJECTS** - Group selectors by the page they belong to
+9. Create page classes that inherit from BasePage
+10. Each page object should encapsulate all locators and actions for that specific page
 
 IMPORTANT: Return ONLY valid JSON with this exact structure:
 {
   "feature": "Feature file content in Gherkin syntax",
-  "steps": "Python step definitions using Behave",
+  "steps": "Python step definitions using Behave that use page objects",
   "locators": {"element_name": "selector"},
   "testData": {"field_name": "example_value"},
-  "helpers": ["suggested_helper_function_names"]
+  "helpers": ["suggested_helper_function_names"],
+  "pageObjects": {
+    "login_page": "Complete Python class code for LoginPage inheriting from BasePage",
+    "dashboard_page": "Complete Python class code for DashboardPage inheriting from BasePage"
+  }
 }
+
+Page Object Structure:
+- Each page class should inherit from pages.base_page.BasePage
+- Define page_url attribute
+- Define locators dictionary with all page-specific selectors
+- Create action methods (e.g., login(), enter_email(), click_submit())
+- Use self.click(), self.fill(), self.find_element() from BasePage
+- Include docstrings for all methods
 
 Do not include any explanation or additional text, only the JSON object.`,
 
