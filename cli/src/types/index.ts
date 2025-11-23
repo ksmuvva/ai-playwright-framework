@@ -200,6 +200,108 @@ export interface FailureClusteringResult {
   uniqueRootCauses: number;
 }
 
+// Meta-Reasoning types
+export interface MetaReasoningResult {
+  reasoning: string;
+  finalAnswer: string;
+  selfEvaluation: {
+    reasoningQuality: number;        // 0-1 score
+    consideredAlternatives: boolean;
+    logicalGaps: string[];
+    uncertainties: string[];
+    confidence: number;
+    strengths: string[];
+    weaknesses: string[];
+  };
+  selfCorrection?: {
+    initialAnswer: string;
+    detectedErrors: string[];
+    correctedAnswer: string;
+    improvement: string;
+  };
+  strategyUsed: 'CoT' | 'ToT' | 'Self-Consistency' | 'Standard';
+  alternativeStrategies?: string[];
+}
+
+export interface ReasoningStrategy {
+  name: 'CoT' | 'ToT' | 'Self-Consistency' | 'Standard';
+  description: string;
+  bestFor: string[];
+  estimatedCost: 'low' | 'medium' | 'high';
+  estimatedAccuracy: 'low' | 'medium' | 'high';
+}
+
+export interface StrategySelectionResult {
+  selectedStrategy: ReasoningStrategy;
+  reasoning: string;
+  alternatives: ReasoningStrategy[];
+  taskComplexity: 'simple' | 'moderate' | 'complex' | 'very-complex';
+}
+
+// Auto-Fix Flaky Tests types
+export interface FlakyTestAnalysis {
+  testName: string;
+  isFlaky: boolean;
+  flakinessScore: number;          // 0-1, higher = more flaky
+  confidence: number;              // 0-1
+  flakinessPattern: 'intermittent' | 'time-dependent' | 'order-dependent' | 'resource-dependent' | 'race-condition' | 'unknown';
+  evidence: {
+    failureRate: number;           // 0-1
+    passRate: number;              // 0-1
+    runs: number;
+    consecutiveFailures: number;
+    consecutivePasses: number;
+    timePatterns?: string[];       // e.g., "Fails more on Monday mornings"
+  };
+  rootCauses: Array<{
+    cause: string;
+    confidence: number;
+    category: 'timing' | 'state' | 'concurrency' | 'environment' | 'resource';
+    evidence: string[];
+  }>;
+  impact: 'critical' | 'high' | 'medium' | 'low';
+}
+
+export interface FlakyTestFix {
+  testName: string;
+  originalCode: string;
+  fixedCode: string;
+  fixes: Array<{
+    issue: string;
+    fix: string;
+    explanation: string;
+    lineNumber?: number;
+    type: 'wait' | 'isolation' | 'retry' | 'cleanup' | 'sync' | 'resource';
+  }>;
+  expectedImprovement: number;     // 0-1, estimated reduction in flakiness
+  confidence: number;              // 0-1
+  testPlan: string;               // How to verify the fix works
+  additionalRecommendations: string[];
+}
+
+export interface FlakyTestDetectionResult {
+  totalTests: number;
+  flakyTests: FlakyTestAnalysis[];
+  flakinessRate: number;           // Overall flakiness percentage
+  recommendations: {
+    highPriority: string[];        // Fix these first
+    mediumPriority: string[];
+    patterns: string[];            // Common patterns found
+  };
+}
+
+export interface TestExecutionHistory {
+  testName: string;
+  runs: Array<{
+    runId: string;
+    timestamp: Date;
+    result: 'pass' | 'fail' | 'skip';
+    duration: number;
+    error?: string;
+    stackTrace?: string;
+  }>;
+}
+
 export interface TemplateContext {
   projectName: string;
   language: 'python' | 'typescript';

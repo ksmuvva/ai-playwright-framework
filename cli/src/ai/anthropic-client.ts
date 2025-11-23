@@ -17,7 +17,13 @@ import {
   ToolUseBlock,
   ToolResult,
   RootCauseAnalysis,
-  FailureClusteringResult
+  FailureClusteringResult,
+  MetaReasoningResult,
+  StrategySelectionResult,
+  FlakyTestAnalysis,
+  FlakyTestFix,
+  FlakyTestDetectionResult,
+  TestExecutionHistory
 } from '../types';
 import {
   buildBDDConversionPrompt,
@@ -906,6 +912,396 @@ Group these failures by root cause.`;
       );
     } catch (error) {
       Logger.error(`Failed to cluster failures: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * ========================================================================
+   * NEW: META-REASONING FEATURES (Phase 2)
+   * ========================================================================
+   */
+
+  /**
+   * Reason about a problem with self-evaluation and correction
+   *
+   * AI evaluates its own reasoning quality, identifies weaknesses, and self-corrects.
+   *
+   * @param problem - The problem to solve
+   * @param context - Additional context for reasoning
+   */
+  async reasonWithMetaCognition(
+    problem: string,
+    context?: string
+  ): Promise<MetaReasoningResult> {
+    try {
+      Logger.info('🧠 Reasoning with meta-cognition...');
+
+      const prompt = `${PROMPTS.META_REASONING}
+
+Problem: ${problem}
+
+${context ? `Context:\n${context}\n` : ''}
+
+Solve this problem and evaluate your own reasoning quality.`;
+
+      return await this.callLLMWithPromptCaching<MetaReasoningResult>(
+        'reasonWithMetaCognition',
+        PROMPTS.META_REASONING,
+        prompt,
+        4000,
+        { problem_length: problem.length }
+      );
+    } catch (error) {
+      Logger.error(`Failed to reason with meta-cognition: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Select the optimal reasoning strategy for a task
+   *
+   * AI analyzes the task and chooses the best reasoning approach
+   * (Standard, CoT, ToT, or Self-Consistency)
+   *
+   * @param task - Description of the task
+   * @param constraints - Constraints like cost, time, accuracy requirements
+   */
+  async selectReasoningStrategy(
+    task: string,
+    constraints?: {
+      maxCost?: 'low' | 'medium' | 'high';
+      timeConstraint?: 'fast' | 'moderate' | 'slow';
+      accuracyRequired?: 'low' | 'medium' | 'high' | 'critical';
+    }
+  ): Promise<StrategySelectionResult> {
+    try {
+      Logger.info('🎯 Selecting optimal reasoning strategy...');
+
+      const prompt = `${PROMPTS.STRATEGY_SELECTION}
+
+Task: ${task}
+
+${constraints ? `Constraints:
+- Max Cost: ${constraints.maxCost || 'no limit'}
+- Time Constraint: ${constraints.timeConstraint || 'no limit'}
+- Accuracy Required: ${constraints.accuracyRequired || 'high'}
+` : ''}
+
+Select the best reasoning strategy for this task.`;
+
+      return await this.callLLMWithPromptCaching<StrategySelectionResult>(
+        'selectReasoningStrategy',
+        PROMPTS.STRATEGY_SELECTION,
+        prompt,
+        2000,
+        { task_length: task.length }
+      );
+    } catch (error) {
+      Logger.error(`Failed to select reasoning strategy: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate with adaptive strategy selection
+   *
+   * AI automatically selects and uses the best reasoning strategy
+   *
+   * @param task - The task to perform
+   * @param autoSelect - Whether to auto-select strategy (default: true)
+   */
+  async generateWithAdaptiveReasoning(
+    task: string,
+    autoSelect: boolean = true
+  ): Promise<{ result: any; strategyUsed: string; metaInfo: MetaReasoningResult }> {
+    try {
+      Logger.info('🔄 Generating with adaptive reasoning...');
+
+      // Step 1: Select optimal strategy
+      const strategySelection = await this.selectReasoningStrategy(task);
+      Logger.info(`✅ Selected strategy: ${strategySelection.selectedStrategy.name}`);
+
+      // Step 2: Execute with meta-reasoning
+      const metaResult = await this.reasonWithMetaCognition(task);
+
+      // Step 3: If confidence is low, consider using a more robust strategy
+      if (metaResult.selfEvaluation.confidence < 0.7 && autoSelect) {
+        Logger.warn(`⚠️  Low confidence (${metaResult.selfEvaluation.confidence}), considering alternative strategy...`);
+
+        // Try with Tree of Thought for better accuracy
+        if (strategySelection.selectedStrategy.name === 'CoT') {
+          Logger.info('🌲 Retrying with Tree of Thought for higher confidence...');
+          const totResult = await this.treeOfThought.reason(task, '', { maxDepth: 3, branchingFactor: 3 });
+
+          return {
+            result: totResult.finalAnswer,
+            strategyUsed: 'ToT (auto-escalated)',
+            metaInfo: {
+              ...metaResult,
+              finalAnswer: totResult.finalAnswer,
+              strategyUsed: 'ToT'
+            }
+          };
+        }
+      }
+
+      return {
+        result: metaResult.finalAnswer,
+        strategyUsed: metaResult.strategyUsed,
+        metaInfo: metaResult
+      };
+    } catch (error) {
+      Logger.error(`Failed to generate with adaptive reasoning: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * ========================================================================
+   * NEW: AUTO-FIX FLAKY TESTS (Phase 2)
+   * ========================================================================
+   */
+
+  /**
+   * Detect if a test is flaky based on execution history
+   *
+   * Analyzes test execution patterns to identify flaky behavior
+   *
+   * @param testName - Name of the test
+   * @param executionHistory - Historical test execution data
+   */
+  async detectFlakyTest(
+    testName: string,
+    executionHistory: TestExecutionHistory
+  ): Promise<FlakyTestAnalysis> {
+    try {
+      Logger.info(`🔍 Analyzing flakiness for: ${testName}`);
+
+      // Calculate statistics
+      const totalRuns = executionHistory.runs.length;
+      const failures = executionHistory.runs.filter(r => r.result === 'fail').length;
+      const passes = executionHistory.runs.filter(r => r.result === 'pass').length;
+
+      const prompt = `${PROMPTS.FLAKY_TEST_DETECTION}
+
+Test Name: ${testName}
+Total Runs: ${totalRuns}
+Failures: ${failures}
+Passes: ${passes}
+
+Execution History:
+${JSON.stringify(executionHistory.runs.slice(-20), null, 2)}
+
+Analyze if this test is flaky and identify the root causes.`;
+
+      return await this.callLLMWithPromptCaching<FlakyTestAnalysis>(
+        'detectFlakyTest',
+        PROMPTS.FLAKY_TEST_DETECTION,
+        prompt,
+        3000,
+        { test_name: testName, runs: totalRuns }
+      );
+    } catch (error) {
+      Logger.error(`Failed to detect flaky test: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Analyze multiple tests for flakiness
+   *
+   * Batch analysis of test suite to identify all flaky tests
+   *
+   * @param testHistories - Array of test execution histories
+   */
+  async detectFlakyTests(
+    testHistories: TestExecutionHistory[]
+  ): Promise<FlakyTestDetectionResult> {
+    try {
+      Logger.info(`🔍 Analyzing ${testHistories.length} tests for flakiness...`);
+
+      const analyses: FlakyTestAnalysis[] = [];
+
+      // Analyze each test (could be parallelized)
+      for (const history of testHistories) {
+        try {
+          const analysis = await this.detectFlakyTest(history.testName, history);
+          if (analysis.isFlaky) {
+            analyses.push(analysis);
+          }
+        } catch (error) {
+          Logger.warn(`Failed to analyze ${history.testName}: ${error}`);
+        }
+      }
+
+      // Sort by flakiness score (worst first)
+      analyses.sort((a, b) => b.flakinessScore - a.flakinessScore);
+
+      const flakinessRate = (analyses.length / testHistories.length) * 100;
+
+      // Categorize by priority
+      const highPriority = analyses
+        .filter(a => a.impact === 'critical' || a.impact === 'high')
+        .map(a => a.testName);
+
+      const mediumPriority = analyses
+        .filter(a => a.impact === 'medium')
+        .map(a => a.testName);
+
+      // Find common patterns
+      const patterns = this.findFlakinessPatterns(analyses);
+
+      Logger.info(`✅ Found ${analyses.length} flaky tests (${flakinessRate.toFixed(1)}% of suite)`);
+
+      return {
+        totalTests: testHistories.length,
+        flakyTests: analyses,
+        flakinessRate,
+        recommendations: {
+          highPriority,
+          mediumPriority,
+          patterns
+        }
+      };
+    } catch (error) {
+      Logger.error(`Failed to detect flaky tests: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Find common patterns across flaky tests
+   *
+   * @param analyses - Array of flaky test analyses
+   */
+  private findFlakinessPatterns(analyses: FlakyTestAnalysis[]): string[] {
+    const patterns: Map<string, number> = new Map();
+
+    analyses.forEach(analysis => {
+      // Count flakiness patterns
+      const pattern = analysis.flakinessPattern;
+      patterns.set(pattern, (patterns.get(pattern) || 0) + 1);
+
+      // Count root cause categories
+      analysis.rootCauses.forEach(cause => {
+        const key = `${cause.category}_related`;
+        patterns.set(key, (patterns.get(key) || 0) + 1);
+      });
+    });
+
+    // Convert to readable patterns
+    const result: string[] = [];
+    patterns.forEach((count, pattern) => {
+      const percentage = (count / analyses.length * 100).toFixed(0);
+      result.push(`${percentage}% of flaky tests are ${pattern} (${count} tests)`);
+    });
+
+    return result.sort((a, b) => {
+      const aNum = parseInt(a.match(/\d+/)?.[0] || '0');
+      const bNum = parseInt(b.match(/\d+/)?.[0] || '0');
+      return bNum - aNum;
+    });
+  }
+
+  /**
+   * Generate a fix for a flaky test
+   *
+   * AI analyzes the test code and provides executable fixes
+   *
+   * @param testName - Name of the test
+   * @param testCode - Current test code
+   * @param analysis - Flakiness analysis from detectFlakyTest
+   */
+  async fixFlakyTest(
+    testName: string,
+    testCode: string,
+    analysis: FlakyTestAnalysis
+  ): Promise<FlakyTestFix> {
+    try {
+      Logger.info(`🔧 Generating fix for flaky test: ${testName}`);
+
+      const prompt = `${PROMPTS.FLAKY_TEST_FIX}
+
+Test Name: ${testName}
+
+Current Test Code:
+${testCode}
+
+Flakiness Analysis:
+- Flakiness Score: ${analysis.flakinessScore}
+- Pattern: ${analysis.flakinessPattern}
+- Root Causes: ${JSON.stringify(analysis.rootCauses, null, 2)}
+
+Generate a fix that addresses these flakiness issues.`;
+
+      const fix = await this.callLLMWithPromptCaching<FlakyTestFix>(
+        'fixFlakyTest',
+        PROMPTS.FLAKY_TEST_FIX,
+        prompt,
+        4000,
+        { test_name: testName, flakiness_score: analysis.flakinessScore }
+      );
+
+      Logger.info(`✅ Generated ${fix.fixes.length} fixes with ${(fix.confidence * 100).toFixed(0)}% confidence`);
+      Logger.info(`📈 Expected improvement: ${(fix.expectedImprovement * 100).toFixed(0)}%`);
+
+      return fix;
+    } catch (error) {
+      Logger.error(`Failed to fix flaky test: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Auto-fix all flaky tests in a detection result
+   *
+   * Batch generation of fixes for all detected flaky tests
+   *
+   * @param detectionResult - Result from detectFlakyTests
+   * @param testCodeMap - Map of test names to their source code
+   */
+  async autoFixFlakyTests(
+    detectionResult: FlakyTestDetectionResult,
+    testCodeMap: Map<string, string>
+  ): Promise<FlakyTestFix[]> {
+    try {
+      Logger.info(`🔧 Auto-fixing ${detectionResult.flakyTests.length} flaky tests...`);
+
+      const fixes: FlakyTestFix[] = [];
+
+      // Fix high priority tests first
+      const priorityOrder = [
+        ...detectionResult.recommendations.highPriority,
+        ...detectionResult.recommendations.mediumPriority
+      ];
+
+      for (const testName of priorityOrder) {
+        const analysis = detectionResult.flakyTests.find(t => t.testName === testName);
+        const testCode = testCodeMap.get(testName);
+
+        if (analysis && testCode) {
+          try {
+            const fix = await this.fixFlakyTest(testName, testCode, analysis);
+            fixes.push(fix);
+          } catch (error) {
+            Logger.warn(`Failed to fix ${testName}: ${error}`);
+          }
+        }
+      }
+
+      Logger.info(`✅ Generated fixes for ${fixes.length} tests`);
+
+      // Summary
+      const avgConfidence = fixes.reduce((sum, f) => sum + f.confidence, 0) / fixes.length;
+      const avgImprovement = fixes.reduce((sum, f) => sum + f.expectedImprovement, 0) / fixes.length;
+
+      Logger.info(`📊 Average fix confidence: ${(avgConfidence * 100).toFixed(0)}%`);
+      Logger.info(`📈 Average expected improvement: ${(avgImprovement * 100).toFixed(0)}%`);
+
+      return fixes;
+    } catch (error) {
+      Logger.error(`Failed to auto-fix flaky tests: ${error}`);
       throw error;
     }
   }
