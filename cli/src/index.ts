@@ -11,7 +11,7 @@ const program = new Command();
 program
   .name('playwright-ai')
   .description('🤖 AI-powered Playwright test automation framework generator')
-  .version('1.0.0');
+  .version('1.0.1');
 
 // Display banner
 console.log(chalk.bold.cyan(`
