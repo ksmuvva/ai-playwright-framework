@@ -104,15 +104,17 @@ export class PythonGenerator {
   private async copyStepFiles(projectDir: string): Promise<void> {
     Logger.step('Copying step definitions...');
 
-    const stepFiles = ['environment.py', 'common_steps.py'];
-
     // Parallelize file copy operations
     await Promise.all([
-      ...stepFiles.map(file =>
-        FileUtils.copyFile(
-          path.join(this.templateDir, 'steps', file),
-          path.join(projectDir, 'steps', file)
-        )
+      // Copy environment.py from features/ directory
+      FileUtils.copyFile(
+        path.join(this.templateDir, 'features', 'environment.py'),
+        path.join(projectDir, 'steps', 'environment.py')
+      ),
+      // Copy common_steps.py from features/steps/ directory
+      FileUtils.copyFile(
+        path.join(this.templateDir, 'features', 'steps', 'common_steps.py'),
+        path.join(projectDir, 'steps', 'common_steps.py')
       ),
       // Create __init__.py for steps package
       FileUtils.writeFile(
