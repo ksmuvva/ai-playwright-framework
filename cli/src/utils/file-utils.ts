@@ -85,10 +85,13 @@ export class FileUtils {
 
   /**
    * Check if file exists
+   * Includes path validation for security
    */
   static async fileExists(filePath: string): Promise<boolean> {
     try {
-      await fs.access(filePath);
+      this.validatePathSafety(filePath);
+      const validatedPath = this.validatePath(filePath);
+      await fs.access(validatedPath);
       return true;
     } catch {
       return false;
@@ -97,10 +100,13 @@ export class FileUtils {
 
   /**
    * Check if directory exists
+   * Includes path validation for security
    */
   static async directoryExists(dirPath: string): Promise<boolean> {
     try {
-      const stat = await fs.stat(dirPath);
+      this.validatePathSafety(dirPath);
+      const validatedPath = this.validatePath(dirPath);
+      const stat = await fs.stat(validatedPath);
       return stat.isDirectory();
     } catch {
       return false;

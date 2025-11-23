@@ -86,8 +86,8 @@ def before_scenario(context, scenario):
                 print("🔐 Authenticating user...")
                 AuthHelper.authenticate(context.page, test_user, test_password)
                 print("✅ Authentication successful\n")
-        except Exception as e:
-            print(f"⚠️  Authentication failed: {e}")
+        except (TimeoutError, ValueError, RuntimeError) as e:
+            print(f"⚠️  Authentication failed: {type(e).__name__}: {e}")
             # Continue without auth for scenarios that might handle it differently
 
 
@@ -115,8 +115,8 @@ def after_scenario(context, scenario):
         try:
             print(f"  URL: {context.page.url}")
             print(f"  Title: {context.page.title()}")
-        except:
-            pass
+        except (AttributeError, RuntimeError) as e:
+            print(f"  ⚠️  Could not retrieve page info: {e}")
 
     elif scenario.status == 'passed':
         print(f"\n✅ Scenario passed: {scenario.name}")
