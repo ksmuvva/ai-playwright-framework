@@ -421,8 +421,11 @@ ${envVars['ANTHROPIC_API_KEY'] ? `ANTHROPIC_API_KEY=${envVars['ANTHROPIC_API_KEY
 ${envVars['OPENAI_API_KEY'] ? `OPENAI_API_KEY=${envVars['OPENAI_API_KEY']}` : '# OPENAI_API_KEY=sk-your-key-here'}
 `;
 
-    // Write .env file
-    await fs.writeFile(envFilePath, newEnvContent.trim() + '\n', 'utf-8');
+    // Write .env file with secure permissions (0o600 - owner read/write only)
+    await fs.writeFile(envFilePath, newEnvContent.trim() + '\n', {
+      encoding: 'utf-8',
+      mode: 0o600 // SECURITY: Prevent other users from reading API keys
+    });
 
     spinner.succeed(chalk.green('CLI .env file created/updated'));
 

@@ -61,6 +61,20 @@ export class FileUtils {
   }
 
   /**
+   * Write file with secure permissions (for sensitive data like .env files)
+   * Sets file mode to 0o600 (owner read/write only)
+   */
+  static async writeSecureFile(filePath: string, content: string): Promise<void> {
+    this.validatePathSafety(filePath);
+    const validatedPath = this.validatePath(filePath);
+    await fs.ensureDir(path.dirname(validatedPath));
+    await fs.writeFile(validatedPath, content, {
+      encoding: 'utf-8',
+      mode: 0o600 // Owner read/write only - prevents API key exposure
+    });
+  }
+
+  /**
    * Read file
    */
   static async readFile(filePath: string): Promise<string> {

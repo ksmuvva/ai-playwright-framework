@@ -26,17 +26,122 @@ import { PhoenixTracer } from '../tracing/phoenix-tracer';
 // Load environment variables from CLI root
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+/**
+ * Simple LRU Cache for AI responses
+ * PERFORMANCE: Reduces API calls and costs by caching deterministic responses
+ */
+class LRUCache<T> {
+  private cache: Map<string, { value: T; timestamp: number }>;
+  private readonly maxSize: number;
+  private readonly ttlMs: number;
+
+  constructor(maxSize: number = 100, ttlMinutes: number = 60) {
+    this.cache = new Map();
+    this.maxSize = maxSize;
+    this.ttlMs = ttlMinutes * 60 * 1000;
+  }
+
+  get(key: string): T | undefined {
+    const entry = this.cache.get(key);
+    if (!entry) return undefined;
+
+    // Check if expired
+    if (Date.now() - entry.timestamp > this.ttlMs) {
+      this.cache.delete(key);
+      return undefined;
+    }
+
+    // Move to end (most recently used)
+    this.cache.delete(key);
+    this.cache.set(key, entry);
+    return entry.value;
+  }
+
+  set(key: string, value: T): void {
+    // Remove oldest if at capacity
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value as string;
+      if (firstKey) {
+        this.cache.delete(firstKey);
+      }
+    }
+
+    this.cache.set(key, { value, timestamp: Date.now() });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  size(): number {
+    return this.cache.size;
+  }
+}
+
+/**
+ * Rate Limiter using Token Bucket algorithm
+ * COST CONTROL: Prevents API throttling and unexpected billing
+ */
+class RateLimiter {
+  private tokens: number;
+  private readonly maxTokens: number;
+  private readonly refillRate: number; // tokens per second
+  private lastRefill: number;
+
+  constructor(maxRequestsPerMinute: number = 50) {
+    this.maxTokens = maxRequestsPerMinute;
+    this.tokens = maxRequestsPerMinute;
+    this.refillRate = maxRequestsPerMinute / 60; // Convert to per second
+    this.lastRefill = Date.now();
+  }
+
+  async waitForToken(): Promise<void> {
+    this.refillTokens();
+
+    if (this.tokens >= 1) {
+      this.tokens -= 1;
+      return;
+    }
+
+    // Calculate wait time until next token available
+    const waitMs = Math.ceil((1 - this.tokens) / this.refillRate * 1000);
+    Logger.info(`Rate limit reached. Waiting ${waitMs}ms before next API call...`);
+
+    await new Promise(resolve => setTimeout(resolve, waitMs));
+    this.refillTokens();
+    this.tokens -= 1;
+  }
+
+  private refillTokens(): void {
+    const now = Date.now();
+    const timePassed = (now - this.lastRefill) / 1000; // Convert to seconds
+    const tokensToAdd = timePassed * this.refillRate;
+
+    this.tokens = Math.min(this.maxTokens, this.tokens + tokensToAdd);
+    this.lastRefill = now;
+  }
+
+  getAvailableTokens(): number {
+    this.refillTokens();
+    return Math.floor(this.tokens);
+  }
+}
+
 export class AnthropicClient implements AIClient {
   private client: Anthropic;
   private model: string;
   private chainOfThought: ChainOfThought;
   private treeOfThought: TreeOfThought;
   private tracer = trace.getTracer('ai-playwright-framework', '1.0.0');
+  private responseCache: LRUCache<any>;
+  private rateLimiter: RateLimiter;
 
   // Configuration constants (BUG-005, BUG-006 fixes)
   private readonly DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
   private readonly MAX_RETRIES = 3;
   private readonly BASE_RETRY_DELAY_MS = 1000; // 1 second
+  private readonly ENABLE_CACHING = process.env.ENABLE_AI_CACHE !== 'false'; // Default: enabled
+  private readonly RATE_LIMIT_RPM = parseInt(process.env.AI_RATE_LIMIT_RPM || '50', 10); // Requests per minute
 
   constructor(apiKey?: string, model?: string) {
     // Use provided API key or fallback to environment variable
@@ -58,6 +163,12 @@ export class AnthropicClient implements AIClient {
     this.chainOfThought = reasoningEngine.chainOfThought;
     this.treeOfThought = reasoningEngine.treeOfThought;
 
+    // Initialize response cache (100 entries, 60 minute TTL)
+    this.responseCache = new LRUCache(100, 60);
+
+    // Initialize rate limiter
+    this.rateLimiter = new RateLimiter(this.RATE_LIMIT_RPM);
+
     // Initialize Phoenix tracing if enabled
     if (process.env.ENABLE_PHOENIX_TRACING !== 'false') {
       try {
@@ -68,6 +179,10 @@ export class AnthropicClient implements AIClient {
     }
 
     Logger.info(`AnthropicClient initialized with model: ${this.model}`);
+    if (this.ENABLE_CACHING) {
+      Logger.info('AI response caching enabled (100 entries, 60min TTL)');
+    }
+    Logger.info(`Rate limiting: ${this.RATE_LIMIT_RPM} requests/minute`);
   }
 
   /**
@@ -152,7 +267,8 @@ export class AnthropicClient implements AIClient {
         // Set span attributes
         span.setAttribute('llm.provider', 'anthropic');
         span.setAttribute('llm.model', this.model);
-        span.setAttribute('llm.request.prompt', prompt.substring(0, 1000)); // Truncate for storage
+        // SECURITY: Scrub potential PII from prompts before logging
+        span.setAttribute('llm.request.prompt', this.scrubPII(prompt).substring(0, 1000));
 
         if (metadata) {
           Object.entries(metadata).forEach(([key, value]) => {
@@ -193,6 +309,105 @@ export class AnthropicClient implements AIClient {
         span.end();
       }
     });
+  }
+
+  /**
+   * Scrub PII (Personally Identifiable Information) from text before logging
+   * SECURITY: Prevents API keys, emails, passwords from being logged
+   */
+  private scrubPII(text: string): string {
+    let scrubbed = text;
+
+    // Scrub API keys (common patterns)
+    scrubbed = scrubbed.replace(/sk-ant-[a-zA-Z0-9-_]+/g, 'sk-ant-***REDACTED***');
+    scrubbed = scrubbed.replace(/sk-[a-zA-Z0-9]{20,}/g, 'sk-***REDACTED***');
+
+    // Scrub email addresses
+    scrubbed = scrubbed.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '***EMAIL***');
+
+    // Scrub potential passwords in JSON (password: "...")
+    scrubbed = scrubbed.replace(/"password"\s*:\s*"[^"]+"/gi, '"password": "***REDACTED***"');
+    scrubbed = scrubbed.replace(/"apiKey"\s*:\s*"[^"]+"/gi, '"apiKey": "***REDACTED***"');
+
+    return scrubbed;
+  }
+
+  /**
+   * Generic LLM call method - reduces code duplication across all AI methods
+   * Handles tracing, retry logic, error handling, caching, and response parsing
+   * PERFORMANCE: Implements LRU caching to reduce API calls
+   */
+  private async callLLM<T = any>(
+    operationName: string,
+    prompt: string,
+    maxTokens: number = 2000,
+    metadata?: Record<string, any>,
+    cacheable: boolean = true
+  ): Promise<T> {
+    // Check cache if enabled and cacheable
+    if (this.ENABLE_CACHING && cacheable) {
+      const cacheKey = this.generateCacheKey(operationName, prompt);
+      const cached = this.responseCache.get(cacheKey);
+      if (cached) {
+        Logger.info(`Cache hit for ${operationName}`);
+        return cached as T;
+      }
+    }
+
+    // Wait for rate limiter token before making API call
+    await this.rateLimiter.waitForToken();
+
+    const response = await this.tracedLLMCall(
+      `anthropic.${operationName}`,
+      prompt,
+      () => this.retryWithBackoff(
+        () => this.client.messages.create({
+          model: this.model,
+          max_tokens: maxTokens,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        }, { timeout: this.DEFAULT_TIMEOUT_MS }),
+        operationName
+      ),
+      metadata
+    ) as Anthropic.Message;
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type from AI');
+    }
+
+    // Parse JSON response
+    const result = this.safeParseJSON(content.text) as T;
+
+    // Cache the result if enabled and cacheable
+    if (this.ENABLE_CACHING && cacheable) {
+      const cacheKey = this.generateCacheKey(operationName, prompt);
+      this.responseCache.set(cacheKey, result);
+      Logger.info(`Cached response for ${operationName} (cache size: ${this.responseCache.size()})`);
+    }
+
+    return result;
+  }
+
+  /**
+   * Generate cache key from operation name and prompt
+   * Uses simple hash to keep keys manageable
+   */
+  private generateCacheKey(operationName: string, prompt: string): string {
+    // Simple hash function for cache keys
+    let hash = 0;
+    const str = `${operationName}:${prompt}`;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return `${operationName}_${hash.toString(36)}`;
   }
 
   /**
@@ -322,31 +537,12 @@ Generate a well-structured BDD scenario with:
         pageHtml: context.pageHtml
       });
 
-      const response = await this.tracedLLMCall(
-        'anthropic.healLocator',
+      const result = await this.callLLM<any>(
+        'healLocator',
         prompt,
-        () => this.retryWithBackoff(
-          () => this.client.messages.create({
-            model: this.model,
-            max_tokens: 1000,
-            messages: [
-              {
-                role: 'user',
-                content: prompt
-              }
-            ]
-          }, { timeout: this.DEFAULT_TIMEOUT_MS }),
-          'Locator healing'
-        ),
-        { max_tokens: 1000, failed_locator: context.failedLocator }
-      ) as Anthropic.Message;
-
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from AI');
-      }
-
-      const result = this.safeParseJSON(content.text);
+        1000,
+        { failed_locator: context.failedLocator }
+      );
 
       return {
         locator: result.locator || '',
@@ -365,32 +561,7 @@ Generate a well-structured BDD scenario with:
   async generateTestData(schema: DataSchema): Promise<TestData> {
     try {
       const prompt = buildDataGenerationPrompt(schema);
-
-      const response = await this.tracedLLMCall(
-        'anthropic.generateTestData',
-        prompt,
-        () => this.retryWithBackoff(
-          () => this.client.messages.create({
-            model: this.model,
-            max_tokens: 2000,
-            messages: [
-              {
-                role: 'user',
-                content: prompt
-              }
-            ]
-          }, { timeout: this.DEFAULT_TIMEOUT_MS }),
-          'Test data generation'
-        ),
-        { max_tokens: 2000 }
-      ) as Anthropic.Message;
-
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from AI');
-      }
-
-      return this.safeParseJSON(content.text);
+      return await this.callLLM<TestData>('generateTestData', prompt, 2000);
     } catch (error) {
       Logger.error(`Failed to generate test data: ${error}`);
       throw error;
@@ -409,31 +580,7 @@ ${JSON.stringify(testLog, null, 2)}
 
 Analyze and suggest wait optimizations.`;
 
-      const response = await this.tracedLLMCall(
-        'anthropic.optimizeWaits',
-        prompt,
-        () => this.retryWithBackoff(
-          () => this.client.messages.create({
-            model: this.model,
-            max_tokens: 2000,
-            messages: [
-              {
-                role: 'user',
-                content: prompt
-              }
-            ]
-          }, { timeout: this.DEFAULT_TIMEOUT_MS }),
-          'Wait optimization'
-        ),
-        { max_tokens: 2000 }
-      ) as Anthropic.Message;
-
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from AI');
-      }
-
-      return this.safeParseJSON(content.text);
+      return await this.callLLM<WaitRecommendations>('optimizeWaits', prompt, 2000);
     } catch (error) {
       Logger.error(`Failed to optimize waits: ${error}`);
       throw error;
@@ -452,31 +599,12 @@ ${JSON.stringify(scenarios, null, 2)}
 
 Analyze patterns and suggest optimizations.`;
 
-      const response = await this.tracedLLMCall(
-        'anthropic.analyzePatterns',
+      return await this.callLLM<PatternAnalysis>(
+        'analyzePatterns',
         prompt,
-        () => this.retryWithBackoff(
-          () => this.client.messages.create({
-            model: this.model,
-            max_tokens: 3000,
-            messages: [
-              {
-                role: 'user',
-                content: prompt
-              }
-            ]
-          }, { timeout: this.DEFAULT_TIMEOUT_MS }),
-          'Pattern analysis'
-        ),
-        { max_tokens: 3000, scenario_count: scenarios.length }
-      ) as Anthropic.Message;
-
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from AI');
-      }
-
-      return this.safeParseJSON(content.text);
+        3000,
+        { scenario_count: scenarios.length }
+      );
     } catch (error) {
       Logger.error(`Failed to analyze patterns: ${error}`);
       throw error;
