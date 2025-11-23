@@ -107,13 +107,15 @@ class HealingLocator:
         Returns:
             Locator if found with any of the alternatives
         """
+        last_error = None
         for locator in locators:
             try:
                 element = page.locator(locator)
                 element.wait_for(timeout=timeout, state='visible')
                 print(f"✅ Found element with: {locator}")
                 return element
-            except:
+            except (TimeoutError, Exception) as e:
+                last_error = e
                 continue
 
         # If all fail, try healing with AI
@@ -122,10 +124,10 @@ class HealingLocator:
             if healed:
                 try:
                     return page.locator(healed)
-                except:
-                    pass
+                except (TimeoutError, Exception) as e:
+                    last_error = e
 
-        raise Exception(f"Could not find element with any locator: {locators}")
+        raise Exception(f"Could not find element with any locator: {locators}. Last error: {last_error}")
 
     def _heal_locator(
         self,
@@ -148,8 +150,14 @@ class HealingLocator:
             return None
 
         try:
-            # Get page content (limited to reduce token usage)
-            page_html = page.content()[:10000]
+            # Get page content efficiently - use evaluate to limit on client side
+            page_html = page.evaluate("""
+                () => {
+                    const body = document.body;
+                    const html = body.innerHTML;
+                    return html.substring(0, 10000);
+                }
+            """)
 
             # Build prompt
             prompt = f"""The following locator failed to find an element:
@@ -173,6 +181,7 @@ Return ONLY a valid JSON object with this structure:
 """
 
             # Call AI based on provider
+            response_text = None
             if AI_PROVIDER == 'anthropic':
                 response = AI_CLIENT.messages.create(
                     model='claude-sonnet-4-5-20250929',
@@ -189,12 +198,68 @@ Return ONLY a valid JSON object with this structure:
                 )
                 response_text = response.choices[0].message.content
 
-            # Parse response
-            result = json.loads(response_text)
-            return result.get('locator')
+            # Parse and validate response
+            if not response_text:
+                print("⚠️  AI returned empty response")
+                return None
 
+            result = self._parse_and_validate_ai_response(response_text)
+            return result.get('locator') if result else None
+
+        except json.JSONDecodeError as e:
+            print(f"⚠️  AI healing failed - invalid JSON: {e}")
+            print(f"    Response preview: {response_text[:200] if response_text else 'None'}")
+            return None
         except Exception as e:
             print(f"⚠️  AI healing failed: {e}")
+            return None
+
+    def _parse_and_validate_ai_response(self, response_text: str) -> Optional[Dict]:
+        """
+        Parse and validate AI response with proper error handling
+
+        Args:
+            response_text: Raw AI response
+
+        Returns:
+            Parsed and validated response dict, or None
+        """
+        try:
+            # Remove markdown code blocks if present
+            cleaned = response_text.strip()
+            if cleaned.startswith('```'):
+                # Extract content between code blocks
+                parts = cleaned.split('```')
+                if len(parts) >= 3:
+                    cleaned = parts[1]
+                    # Remove 'json' language identifier
+                    if cleaned.startswith('json'):
+                        cleaned = cleaned[4:].strip()
+
+            # Parse JSON
+            data = json.loads(cleaned)
+
+            # Validate structure
+            if not isinstance(data, dict):
+                print(f"⚠️  Invalid response type: expected dict, got {type(data)}")
+                return None
+
+            if 'locator' not in data:
+                print("⚠️  Missing 'locator' field in AI response")
+                return None
+
+            # Validate locator is non-empty string
+            if not isinstance(data['locator'], str) or not data['locator'].strip():
+                print("⚠️  Invalid 'locator' value in AI response")
+                return None
+
+            return data
+
+        except json.JSONDecodeError as e:
+            print(f"⚠️  JSON parsing failed: {e}")
+            return None
+        except Exception as e:
+            print(f"⚠️  Response validation failed: {e}")
             return None
 
     def _log_healing(self, original: str, healed: str):

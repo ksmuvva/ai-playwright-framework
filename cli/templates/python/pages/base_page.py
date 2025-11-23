@@ -154,7 +154,8 @@ class BasePage:
         try:
             element = self.find_element(locator_key, timeout=2000)
             return element.is_visible()
-        except:
+        except (TimeoutError, LookupError, ValueError, Exception) as e:
+            # Element not found or not visible - this is expected behavior
             return False
 
     def wait_for_element(
