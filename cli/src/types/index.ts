@@ -116,6 +116,88 @@ export interface AIClient {
   generateTestData(schema: DataSchema): Promise<TestData>;
   optimizeWaits(testLog: any): Promise<WaitRecommendations>;
   analyzePatterns(scenarios: any[]): Promise<PatternAnalysis>;
+
+  // New: Streaming support
+  generateBDDScenarioStream?(
+    recording: PlaywrightAction[],
+    scenarioName: string,
+    onProgress: (chunk: string) => void
+  ): Promise<BDDOutput>;
+
+  // New: Function calling
+  callWithTools?(
+    prompt: string,
+    tools: ToolDefinition[],
+    onToolCall: (toolName: string, toolInput: any) => Promise<any>
+  ): Promise<any>;
+}
+
+// Tool/Function calling types
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  input_schema: {
+    type: 'object';
+    properties: Record<string, ToolParameter>;
+    required?: string[];
+  };
+}
+
+export interface ToolParameter {
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  description: string;
+  enum?: string[];
+  items?: ToolParameter;
+  properties?: Record<string, ToolParameter>;
+}
+
+export interface ToolUseBlock {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: any;
+}
+
+export interface ToolResult {
+  type: 'tool_result';
+  tool_use_id: string;
+  content: string;
+}
+
+// Root Cause Analysis types
+export interface RootCauseAnalysis {
+  symptom: string;
+  rootCause: string;
+  category: 'timing' | 'locator' | 'data' | 'environment' | 'logic';
+  confidence: number;
+  evidence: string[];
+  suggestedFix: {
+    code: string;
+    explanation: string;
+    alternativeFixes: Array<{
+      code: string;
+      explanation: string;
+      pros: string[];
+      cons: string[];
+    }>;
+  };
+  relatedFailures: string[];
+  impact: 'critical' | 'high' | 'medium' | 'low';
+}
+
+// Failure Clustering types
+export interface FailureCluster {
+  rootCause: string;
+  failedTests: string[];
+  count: number;
+  suggestedFix: string;
+  similarity: number;
+}
+
+export interface FailureClusteringResult {
+  clusters: FailureCluster[];
+  totalFailures: number;
+  uniqueRootCauses: number;
 }
 
 export interface TemplateContext {

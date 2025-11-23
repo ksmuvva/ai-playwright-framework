@@ -12,7 +12,12 @@ import {
   TestData,
   WaitRecommendations,
   PatternAnalysis,
-  PlaywrightAction
+  PlaywrightAction,
+  ToolDefinition,
+  ToolUseBlock,
+  ToolResult,
+  RootCauseAnalysis,
+  FailureClusteringResult
 } from '../types';
 import {
   buildBDDConversionPrompt,
@@ -144,6 +149,12 @@ export class AnthropicClient implements AIClient {
   private readonly ENABLE_CACHING = process.env.ENABLE_AI_CACHE !== 'false'; // Default: enabled
   private readonly RATE_LIMIT_RPM = parseInt(process.env.AI_RATE_LIMIT_RPM || '50', 10); // Requests per minute
 
+  // NEW: Prompt caching configuration (90% cost savings!)
+  private readonly ENABLE_PROMPT_CACHING = process.env.ENABLE_PROMPT_CACHING !== 'false'; // Default: enabled
+
+  // NEW: Streaming configuration
+  private readonly ENABLE_STREAMING = process.env.ENABLE_STREAMING === 'true'; // Default: disabled for compatibility
+
   constructor(apiKey?: string, model?: string) {
     // Use provided API key or fallback to environment variable
     const key = apiKey || process.env.ANTHROPIC_API_KEY;
@@ -182,6 +193,12 @@ export class AnthropicClient implements AIClient {
     Logger.info(`AnthropicClient initialized with model: ${this.model}`);
     if (this.ENABLE_CACHING) {
       Logger.info('AI response caching enabled (100 entries, 60min TTL)');
+    }
+    if (this.ENABLE_PROMPT_CACHING) {
+      Logger.info('✨ Prompt caching enabled (90% cost reduction on repeated prompts)');
+    }
+    if (this.ENABLE_STREAMING) {
+      Logger.info('⚡ Streaming responses enabled (real-time feedback)');
     }
     Logger.info(`Rate limiting: ${this.RATE_LIMIT_RPM} requests/minute`);
   }
@@ -583,6 +600,312 @@ Analyze patterns and suggest optimizations.`;
       );
     } catch (error) {
       Logger.error(`Failed to analyze patterns: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * ========================================================================
+   * NEW: ADVANCED AI FEATURES (Phase 1: Quick Wins)
+   * ========================================================================
+   */
+
+  /**
+   * FEATURE 1: PROMPT CACHING
+   * Make LLM call with prompt caching enabled (90% cost reduction!)
+   *
+   * Anthropic's prompt caching caches large context blocks (like system prompts)
+   * for 5 minutes, reducing costs by ~90% on cached portions.
+   *
+   * @param operationName - Name of the operation for logging
+   * @param systemPrompt - System prompt to cache (e.g., BDD conversion instructions)
+   * @param userPrompt - User prompt (changes each call)
+   * @param maxTokens - Max tokens for response
+   * @param metadata - Additional metadata for tracing
+   */
+  private async callLLMWithPromptCaching<T = any>(
+    operationName: string,
+    systemPrompt: string,
+    userPrompt: string,
+    maxTokens: number = 2000,
+    metadata?: Record<string, any>
+  ): Promise<T> {
+    // Wait for rate limiter
+    await this.rateLimiter.waitForToken();
+
+    const response = await this.tracedLLMCall(
+      `anthropic.${operationName}.cached`,
+      `${systemPrompt}\n\n${userPrompt}`,
+      () => this.retryWithBackoff(
+        () => this.client.messages.create({
+          model: this.model,
+          max_tokens: maxTokens,
+          // PROMPT CACHING: Mark system prompt as cacheable
+          system: this.ENABLE_PROMPT_CACHING ? [
+            {
+              type: 'text',
+              text: systemPrompt,
+              cache_control: { type: 'ephemeral' }  // ✨ THIS ENABLES CACHING!
+            }
+          ] as any : systemPrompt,  // Cast to any for cache_control support
+          messages: [
+            {
+              role: 'user',
+              content: userPrompt
+            }
+          ]
+        } as any, { timeout: this.DEFAULT_TIMEOUT_MS }),
+        operationName
+      ),
+      metadata
+    ) as Anthropic.Message;
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type from AI');
+    }
+
+    // Log cache performance
+    if (this.ENABLE_PROMPT_CACHING && (response as any).usage) {
+      const usage = (response as any).usage;
+      if (usage.cache_creation_input_tokens || usage.cache_read_input_tokens) {
+        Logger.info(`💰 Prompt Caching Stats:
+  - Cache Write: ${usage.cache_creation_input_tokens || 0} tokens
+  - Cache Read: ${usage.cache_read_input_tokens || 0} tokens (90% cheaper!)
+  - Regular: ${usage.input_tokens || 0} tokens`);
+      }
+    }
+
+    return this.safeParseJSON(content.text) as T;
+  }
+
+  /**
+   * FEATURE 2: STREAMING RESPONSES
+   * Generate BDD scenario with streaming for real-time feedback
+   *
+   * Instead of waiting for the entire response, stream tokens as they're generated.
+   * Provides better UX for long-running operations.
+   *
+   * @param recording - Playwright actions
+   * @param scenarioName - Name of the scenario
+   * @param onProgress - Callback for each chunk of text
+   */
+  async generateBDDScenarioStream(
+    recording: PlaywrightAction[],
+    scenarioName: string,
+    onProgress: (chunk: string) => void
+  ): Promise<BDDOutput> {
+    try {
+      Logger.info('⚡ Streaming BDD scenario generation...');
+
+      const prompt = buildBDDConversionPrompt(recording, scenarioName);
+
+      // Wait for rate limiter
+      await this.rateLimiter.waitForToken();
+
+      let fullResponse = '';
+
+      // STREAMING: Use stream instead of create
+      const stream = await this.client.messages.stream({
+        model: this.model,
+        max_tokens: 4000,
+        system: this.ENABLE_PROMPT_CACHING ? [
+          {
+            type: 'text',
+            text: PROMPTS.BDD_CONVERSION,
+            cache_control: { type: 'ephemeral' }  // Cache + Stream!
+          }
+        ] as any : PROMPTS.BDD_CONVERSION,  // Cast to any for cache_control support
+        messages: [{ role: 'user', content: prompt }]
+      } as any);
+
+      // Process stream events
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' &&
+            event.delta.type === 'text_delta') {
+          const chunk = event.delta.text;
+          fullResponse += chunk;
+          onProgress(chunk);  // ✨ Real-time callback!
+        }
+      }
+
+      // Get final message with usage stats
+      const finalMessage = await stream.finalMessage();
+
+      // Log usage
+      if (finalMessage.usage) {
+        Logger.info(`Token usage: ${finalMessage.usage.input_tokens} in, ${finalMessage.usage.output_tokens} out`);
+      }
+
+      // Parse and return
+      const result = this.safeParseJSON(fullResponse);
+      return this.parseBDDOutput(result);
+
+    } catch (error) {
+      Logger.error(`Failed to stream BDD scenario: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * FEATURE 3: FUNCTION CALLING / TOOL USE
+   * Call LLM with tools that it can invoke
+   *
+   * Enables AI to call functions/tools to complete tasks autonomously.
+   * AI can query databases, call APIs, execute commands, etc.
+   *
+   * @param prompt - The user's request
+   * @param tools - Available tools the AI can use
+   * @param onToolCall - Callback to execute when AI wants to use a tool
+   * @param maxIterations - Max tool use iterations (prevent infinite loops)
+   */
+  async callWithTools(
+    prompt: string,
+    tools: ToolDefinition[],
+    onToolCall: (toolName: string, toolInput: any) => Promise<any>,
+    maxIterations: number = 5
+  ): Promise<any> {
+    try {
+      Logger.info(`🛠️  Calling LLM with ${tools.length} tools available`);
+
+      await this.rateLimiter.waitForToken();
+
+      let messages: any[] = [{ role: 'user', content: prompt }];
+      let iterations = 0;
+
+      while (iterations < maxIterations) {
+        iterations++;
+
+        const response = await this.client.messages.create({
+          model: this.model,
+          max_tokens: 4000,
+          tools: tools as any,  // Anthropic tool format
+          messages: messages
+        }) as Anthropic.Message;
+
+        // Check if AI wants to use a tool
+        const toolUseBlock = response.content.find(
+          (block: any) => block.type === 'tool_use'
+        ) as ToolUseBlock | undefined;
+
+        if (!toolUseBlock) {
+          // AI didn't use a tool, return final answer
+          const textBlock = response.content.find((block: any) => block.type === 'text');
+          if (textBlock && 'text' in textBlock) {
+            Logger.info(`✅ Final answer received (${iterations} iterations)`);
+            return textBlock.text;
+          }
+          throw new Error('No text response from AI');
+        }
+
+        // AI wants to use a tool!
+        Logger.info(`🔧 AI calling tool: ${toolUseBlock.name} with input: ${JSON.stringify(toolUseBlock.input)}`);
+
+        // Execute the tool
+        const toolResult = await onToolCall(toolUseBlock.name, toolUseBlock.input);
+        Logger.info(`✅ Tool executed successfully`);
+
+        // Add assistant message and tool result to conversation
+        messages.push({
+          role: 'assistant',
+          content: response.content
+        });
+
+        messages.push({
+          role: 'user',
+          content: [{
+            type: 'tool_result',
+            tool_use_id: toolUseBlock.id,
+            content: JSON.stringify(toolResult)
+          }]
+        });
+      }
+
+      throw new Error(`Max iterations (${maxIterations}) reached in tool use loop`);
+
+    } catch (error) {
+      Logger.error(`Failed to call with tools: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * ========================================================================
+   * NEW: SEMANTIC INTELLIGENCE FEATURES
+   * ========================================================================
+   */
+
+  /**
+   * Perform root cause analysis on test failure
+   *
+   * Deep analysis to understand WHY a test failed, not just WHAT failed.
+   *
+   * @param failureInfo - Information about the test failure
+   */
+  async analyzeRootCause(failureInfo: {
+    testName: string;
+    errorMessage: string;
+    stackTrace?: string;
+    screenshot?: string;
+    pageHtml?: string;
+    testCode?: string;
+    previousFailures?: any[];
+  }): Promise<RootCauseAnalysis> {
+    try {
+      const prompt = `${PROMPTS.ROOT_CAUSE_ANALYSIS}
+
+Test Name: ${failureInfo.testName}
+Error Message: ${failureInfo.errorMessage}
+
+${failureInfo.stackTrace ? `Stack Trace:\n${failureInfo.stackTrace}\n` : ''}
+${failureInfo.testCode ? `Test Code:\n${failureInfo.testCode}\n` : ''}
+${failureInfo.pageHtml ? `Page HTML:\n${failureInfo.pageHtml.substring(0, 2000)}\n` : ''}
+${failureInfo.previousFailures ? `Previous Similar Failures:\n${JSON.stringify(failureInfo.previousFailures, null, 2)}\n` : ''}
+
+Perform deep root cause analysis.`;
+
+      return await this.callLLMWithPromptCaching<RootCauseAnalysis>(
+        'analyzeRootCause',
+        PROMPTS.ROOT_CAUSE_ANALYSIS,
+        prompt,
+        3000,
+        { test_name: failureInfo.testName }
+      );
+    } catch (error) {
+      Logger.error(`Failed to analyze root cause: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Cluster similar test failures
+   *
+   * Groups related failures by semantic similarity to reduce noise.
+   *
+   * @param failures - Array of test failures
+   */
+  async clusterFailures(failures: Array<{
+    testName: string;
+    errorMessage: string;
+    stackTrace?: string;
+  }>): Promise<FailureClusteringResult> {
+    try {
+      const prompt = `${PROMPTS.FAILURE_CLUSTERING}
+
+Test Failures:
+${JSON.stringify(failures, null, 2)}
+
+Group these failures by root cause.`;
+
+      return await this.callLLMWithPromptCaching<FailureClusteringResult>(
+        'clusterFailures',
+        PROMPTS.FAILURE_CLUSTERING,
+        prompt,
+        3000,
+        { failure_count: failures.length }
+      );
+    } catch (error) {
+      Logger.error(`Failed to cluster failures: ${error}`);
       throw error;
     }
   }
