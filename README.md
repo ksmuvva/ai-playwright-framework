@@ -38,6 +38,26 @@ One CLI command generates a complete framework with:
 
 ### Installation
 
+**From Source (Current Method):**
+
+```bash
+# Clone the repository
+git clone https://github.com/ksmuvva/ai-playwright-framework.git
+cd ai-playwright-framework/cli
+
+# Install dependencies and build
+npm install
+npm run build
+
+# Link CLI globally
+npm link
+
+# Verify installation
+playwright-ai --version
+```
+
+**From npm (Coming Soon):**
+
 ```bash
 npm install -g playwright-ai-framework
 ```
