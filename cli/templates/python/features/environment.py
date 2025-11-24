@@ -200,10 +200,10 @@ def after_step(context, step):
         logger.error("step_failed", step=step.name, status=step.status, message=step_display)
 
     # Capture screenshot if enabled
+    # Note: ScreenshotManager now handles filename sanitization internally
     if os.getenv('ENABLE_SCREENSHOTS', 'true').lower() == 'true':
-        step_name = step.name.replace(' ', '_')[:50]
-        ScreenshotManager.capture_screenshot(context.page, step_name)
-        logger.debug("screenshot_captured", step=step_name, message="Screenshot saved")
+        ScreenshotManager.capture_screenshot(context.page, step.name)
+        logger.debug("screenshot_captured", step=step.name, message="Screenshot saved")
 
 
 def after_scenario(context, scenario):
