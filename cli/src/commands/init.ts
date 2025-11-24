@@ -308,56 +308,94 @@ async function installDependencies(projectDir: string, options: InitOptions): Pr
     {
       type: 'confirm',
       name: 'install',
-      message: 'Install dependencies now?',
+      message: 'Install dependencies now (using UV - fast Python package manager)?',
       default: true
     }
   ]);
 
   if (!shouldInstall.install) {
     Logger.warning('Dependencies not installed. Run manually:');
-    Logger.code('  pip install -r requirements.txt');
-    Logger.code('  playwright install chromium');
+    Logger.code('  uv sync  # Install all dependencies (creates venv automatically)');
+    Logger.code('  uv run playwright install chromium  # Install browsers');
+    Logger.newline();
+    Logger.info('💡 UV is 10-100x faster than pip! Install it: https://docs.astral.sh/uv/');
     return;
   }
 
-  const spinner = ora('Installing Python dependencies...').start();
+  const spinner = ora('Installing Python dependencies with UV...').start();
 
   try {
     if (options.language === 'python') {
-      // Create virtual environment
-      spinner.text = 'Creating virtual environment...';
-      await execAsync('python3 -m venv venv || python -m venv venv', { cwd: projectDir });
+      // Check if UV is installed
+      spinner.text = 'Checking for UV installation...';
+      try {
+        await execAsync('uv --version', { cwd: projectDir });
+        spinner.succeed(chalk.green('UV package manager detected'));
+      } catch (uvCheckError) {
+        spinner.warn(chalk.yellow('UV not found. Please install UV for 10-100x faster installs!'));
+        Logger.newline();
+        Logger.info('Install UV with one command:');
+        Logger.code('  curl -LsSf https://astral.sh/uv/install.sh | sh  # Unix/macOS');
+        Logger.code('  powershell -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows');
+        Logger.newline();
+        Logger.info('Falling back to pip (slower)...');
 
-      // Install requirements
-      spinner.text = 'Installing Python packages...';
-      const pipCommand = process.platform === 'win32'
-        ? 'venv\\Scripts\\pip'
-        : 'venv/bin/pip';
+        // Fallback to pip
+        spinner.start('Creating virtual environment with venv...');
+        await execAsync('python3 -m venv .venv || python -m venv .venv', { cwd: projectDir });
 
-      await execAsync(`${pipCommand} install -r requirements.txt`, {
-        cwd: projectDir
-      });
+        spinner.text = 'Installing Python packages with pip...';
+        const pipCommand = process.platform === 'win32'
+          ? '.venv\\Scripts\\pip'
+          : '.venv/bin/pip';
 
-      // Install Playwright browsers
+        await execAsync(`${pipCommand} install -e .`, {
+          cwd: projectDir
+        });
+
+        spinner.text = 'Installing Playwright browsers...';
+        const pythonCommand = process.platform === 'win32'
+          ? '.venv\\Scripts\\python'
+          : '.venv/bin/python';
+
+        await execAsync(`${pythonCommand} -m playwright install chromium`, {
+          cwd: projectDir
+        });
+
+        spinner.succeed(chalk.green('Dependencies installed successfully (with pip)'));
+        return;
+      }
+
+      // UV is installed - use it!
+      spinner.start('Installing dependencies with UV (10-100x faster than pip)...');
+
+      // UV automatically creates venv and installs dependencies
+      await execAsync('uv sync', { cwd: projectDir });
+
+      // Install Playwright browsers using UV
       spinner.text = 'Installing Playwright browsers...';
-      const pythonCommand = process.platform === 'win32'
-        ? 'venv\\Scripts\\python'
-        : 'venv/bin/python';
-
-      await execAsync(`${pythonCommand} -m playwright install chromium`, {
+      await execAsync('uv run playwright install chromium', {
         cwd: projectDir
       });
 
-      spinner.succeed(chalk.green('Dependencies installed successfully'));
+      spinner.succeed(chalk.green('✨ Dependencies installed successfully with UV!'));
     }
 
   } catch (error) {
     spinner.fail();
     Logger.error('Failed to install dependencies automatically.');
+    Logger.newline();
     Logger.warning('Please install manually:');
-    Logger.code('  python3 -m venv venv');
-    Logger.code('  source venv/bin/activate  # On Windows: venv\\Scripts\\activate');
-    Logger.code('  pip install -r requirements.txt');
+    Logger.newline();
+    Logger.info('Option 1 (Recommended - UV):');
+    Logger.code('  # Install UV first: https://docs.astral.sh/uv/');
+    Logger.code('  uv sync');
+    Logger.code('  uv run playwright install chromium');
+    Logger.newline();
+    Logger.info('Option 2 (Traditional - pip):');
+    Logger.code('  python3 -m venv .venv');
+    Logger.code('  source .venv/bin/activate  # On Windows: .venv\\Scripts\\activate');
+    Logger.code('  pip install -e .');
     Logger.code('  playwright install chromium');
   }
 }
@@ -473,14 +511,21 @@ function displaySuccessMessage(options: InitOptions): void {
   Logger.code('  TEST_PASSWORD=your-password');
 
   Logger.newline();
-  Logger.step('Run your tests:');
+  Logger.step('Activate your environment and run tests:');
+  Logger.code('  # With UV (recommended):');
+  Logger.code('  uv run behave');
+  Logger.code('  uv run behave --tags=@smoke');
+  Logger.code('');
+  Logger.code('  # Or activate venv manually:');
+  Logger.code('  source .venv/bin/activate  # On Windows: .venv\\Scripts\\activate');
   Logger.code('  behave');
-  Logger.code('  behave --tags=@smoke');
 
   Logger.newline();
   Logger.step('Record a new scenario:');
   Logger.code('  playwright-ai record --url https://your-app.com');
 
+  Logger.newline();
+  Logger.info('💡 UV is 10-100x faster than pip! Already using it for dependencies.');
   Logger.newline();
   Logger.success('Happy testing! 🚀');
   Logger.newline();

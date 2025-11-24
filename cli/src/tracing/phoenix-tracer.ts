@@ -39,7 +39,7 @@ export class PhoenixTracer {
 
     const endpoint = phoenixEndpoint || process.env.PHOENIX_COLLECTOR_ENDPOINT || 'http://localhost:6006/v1/traces';
     const name = serviceName || process.env.SERVICE_NAME || 'ai-playwright-framework';
-    const version = serviceVersion || process.env.SERVICE_VERSION || '1.0.0';
+    const version = serviceVersion || process.env.SERVICE_VERSION || '2.0.0';
 
     try {
       // Configure OTLP trace exporter
@@ -68,9 +68,17 @@ export class PhoenixTracer {
       Logger.success(`Phoenix tracing initialized successfully`);
       Logger.info(`  Service: ${name} v${version}`);
       Logger.info(`  Endpoint: ${endpoint}`);
-      Logger.info(`  View traces at: ${endpoint.replace('/v1/traces', '')}`);
+      Logger.newline();
+      Logger.warning(`⚠️  Phoenix server must be running separately!`);
+      Logger.info(`To start Phoenix server:`);
+      Logger.code(`  pip install arize-phoenix`);
+      Logger.code(`  python -m phoenix.server.main serve`);
+      Logger.info(`Then view traces at: ${endpoint.replace('/v1/traces', '')}`);
+      Logger.newline();
+      Logger.info(`Or disable tracing: ENABLE_PHOENIX_TRACING=false`);
     } catch (error) {
       Logger.error(`Failed to initialize Phoenix tracing: ${error}`);
+      Logger.warning(`Phoenix tracing is optional. To disable: ENABLE_PHOENIX_TRACING=false`);
       throw error;
     }
   }
