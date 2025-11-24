@@ -267,48 +267,50 @@ config = Config()
 
   /**
    * Copy .env.example and create secure .env file with actual API key
+   * FIX: Issue #1 - Populate API key in project's .env file if provided
    */
-  private async copyEnvExample(projectDir: string, options?: InitOptions): Promise<void> {
+  private async copyEnvExample(projectDir: string, options: InitOptions): Promise<void> {
     Logger.step('Copying .env.example...');
 
     const src = path.join(this.templateDir, '.env.example');
     const dest = path.join(projectDir, '.env.example');
     await FileUtils.copyFile(src, dest);
 
-    // Create .env file with secure permissions (0o600)
+    // Read .env.example content
     let envContent = await FileUtils.readFile(src);
 
-    // Inject actual API key if provided (FIX: Issue #1 - API key not saved to project .env)
-    if (options?.apiKey && options?.aiProvider) {
+    // Update API key and model if provided
+    if (options.apiKey && options.aiProvider !== 'none') {
       if (options.aiProvider === 'anthropic') {
-        // Replace the placeholder Anthropic API key with the real one
         envContent = envContent.replace(
           /ANTHROPIC_API_KEY=.*/,
           `ANTHROPIC_API_KEY=${options.apiKey}`
         );
       } else if (options.aiProvider === 'openai') {
-        // Replace the placeholder OpenAI API key with the real one
         envContent = envContent.replace(
           /OPENAI_API_KEY=.*/,
           `OPENAI_API_KEY=${options.apiKey}`
         );
       }
-
-      // Update AI_PROVIDER and AI_MODEL if specified
-      if (options.aiProvider) {
-        envContent = envContent.replace(
-          /AI_PROVIDER=.*/,
-          `AI_PROVIDER=${options.aiProvider}`
-        );
-      }
-      if (options.aiModel) {
-        envContent = envContent.replace(
-          /AI_MODEL=.*/,
-          `AI_MODEL=${options.aiModel}`
-        );
-      }
     }
 
+    // Update AI model if provided
+    if (options.aiModel) {
+      envContent = envContent.replace(
+        /AI_MODEL=.*/,
+        `AI_MODEL=${options.aiModel}`
+      );
+    }
+
+    // Update AI provider
+    if (options.aiProvider) {
+      envContent = envContent.replace(
+        /AI_PROVIDER=.*/,
+        `AI_PROVIDER=${options.aiProvider}`
+      );
+    }
+
+    // Create .env file with secure permissions (0o600)
     await FileUtils.writeSecureFile(
       path.join(projectDir, '.env'),
       envContent

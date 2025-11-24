@@ -6,6 +6,7 @@ from playwright.sync_api import Page
 from pathlib import Path
 from datetime import datetime
 import os
+import re
 
 class ScreenshotManager:
     """Auto-capture screenshots for debugging and reporting"""
@@ -15,6 +16,33 @@ class ScreenshotManager:
     current_scenario = ""
 
     @classmethod
+    def _sanitize_filename(cls, name: str) -> str:
+        """
+        Sanitize filename to be cross-platform compatible
+
+        Removes/replaces characters that are invalid in Windows filenames:
+        < > : " / \ | ? * and control characters
+
+        Args:
+            name: Original filename
+
+        Returns:
+            str: Sanitized filename safe for all platforms
+        """
+        # Replace Windows-invalid characters with underscores
+        # This includes: < > : " / \ | ? * and control characters (0-31)
+        sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
+
+        # Replace multiple consecutive underscores with single underscore
+        sanitized = re.sub(r'_+', '_', sanitized)
+
+        # Remove leading/trailing underscores and whitespace
+        sanitized = sanitized.strip('_ ')
+
+        # Limit length to 50 characters
+        return sanitized[:50]
+
+    @classmethod
     def setup(cls, scenario_name: str = "test"):
         """
         Initialize screenshot directory
@@ -22,7 +50,7 @@ class ScreenshotManager:
         Args:
             scenario_name: Name of current scenario
         """
-        cls.current_scenario = scenario_name
+        cls.current_scenario = cls._sanitize_filename(scenario_name)
         cls.screenshot_dir.mkdir(parents=True, exist_ok=True)
         cls.step_counter = 0
 
@@ -50,15 +78,7 @@ class ScreenshotManager:
         try:
             cls.step_counter += 1
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            # FIX: Issue #5 - Sanitize filename for Windows (remove all invalid characters)
-            # Windows invalid characters: < > : " / \ | ? *
-            clean_name = name
-            invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
-            for char in invalid_chars:
-                clean_name = clean_name.replace(char, '_')
-            # Also replace spaces and limit length
-            clean_name = clean_name.replace(' ', '_')[:50]
+            clean_name = cls._sanitize_filename(name)
 
             filename = f"{cls.step_counter:03d}_{timestamp}_{clean_name}.png"
 
@@ -124,13 +144,7 @@ class ScreenshotManager:
             if element.count() > 0:
                 cls.step_counter += 1
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                # FIX: Issue #5 - Sanitize filename for Windows (remove all invalid characters)
-                clean_name = name
-                invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
-                for char in invalid_chars:
-                    clean_name = clean_name.replace(char, '_')
-                clean_name = clean_name.replace(' ', '_')[:50]
+                clean_name = cls._sanitize_filename(name)
 
                 filename = f"{cls.step_counter:03d}_{timestamp}_{clean_name}_element.png"
                 filepath = cls.screenshot_dir / filename
