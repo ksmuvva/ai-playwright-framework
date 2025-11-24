@@ -6,6 +6,7 @@ Captures all LLM API calls, responses, token usage, and latency metrics.
 """
 
 import os
+import sys
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -13,6 +14,16 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.semconv.resource import ResourceAttributes
 import phoenix as px
+
+# Import structured logger
+try:
+    from helpers.logger import get_logger
+    logger = get_logger("phoenix_tracer")
+except ImportError:
+    # Fallback if logger not available
+    import logging
+    logger = logging.getLogger("phoenix_tracer")
+    logger.setLevel(logging.INFO)
 
 
 class PhoenixTracer:
@@ -37,39 +48,88 @@ class PhoenixTracer:
         Args:
             phoenix_endpoint: Phoenix collector endpoint (default: http://localhost:6006/v1/traces)
             service_name: Service name for tracing (default: ai-playwright-framework-python)
-            service_version: Service version (default: 1.0.0)
+            service_version: Service version (default: 2.0.0)
             launch_ui: Whether to launch Phoenix UI (default: True)
         """
+        logger.info(
+            "phoenix_initialization_started",
+            message="Starting Phoenix tracing initialization..."
+        )
+
         if cls._initialized:
-            print("Phoenix tracing already initialized")
+            logger.warning(
+                "phoenix_already_initialized",
+                message="Phoenix tracing is already initialized, skipping..."
+            )
             return
 
         # Check if Phoenix tracing is enabled
         enable_tracing = os.getenv('ENABLE_PHOENIX_TRACING', 'true').lower() != 'false'
         if not enable_tracing:
-            print("Phoenix tracing is disabled via ENABLE_PHOENIX_TRACING=false")
+            logger.warning(
+                "phoenix_disabled",
+                message="Phoenix tracing is disabled via ENABLE_PHOENIX_TRACING=false",
+                reason="Environment variable ENABLE_PHOENIX_TRACING is set to false"
+            )
             return
 
         endpoint = phoenix_endpoint or os.getenv('PHOENIX_COLLECTOR_ENDPOINT') or 'http://localhost:6006/v1/traces'
         name = service_name or os.getenv('SERVICE_NAME') or 'ai-playwright-framework-python'
-        version = service_version or os.getenv('SERVICE_VERSION') or '1.0.0'
+        version = service_version or os.getenv('SERVICE_VERSION') or '2.0.0'
+
+        logger.debug(
+            "phoenix_configuration",
+            service_name=name,
+            service_version=version,
+            endpoint=endpoint,
+            launch_ui=launch_ui,
+        )
 
         try:
             # Launch Phoenix UI if requested
-            if launch_ui and os.getenv('PHOENIX_LAUNCH_UI', 'true').lower() != 'false':
+            should_launch_ui = launch_ui and os.getenv('PHOENIX_LAUNCH_UI', 'true').lower() != 'false'
+
+            if should_launch_ui:
+                logger.info(
+                    "phoenix_ui_launching",
+                    message="Launching Phoenix UI server..."
+                )
                 cls._phoenix_session = px.launch_app()
-                print(f"Phoenix UI launched at: http://localhost:6006")
+                logger.info(
+                    "phoenix_ui_launched",
+                    ui_url="http://localhost:6006",
+                    message="🎯 Phoenix UI is now running - open http://localhost:6006 in your browser"
+                )
+            else:
+                logger.info(
+                    "phoenix_ui_skipped",
+                    message="Phoenix UI launch skipped (PHOENIX_LAUNCH_UI=false)"
+                )
 
             # Configure resource with service information
+            logger.debug(
+                "phoenix_resource_creation",
+                message="Creating OpenTelemetry resource..."
+            )
+
             resource = Resource.create({
                 ResourceAttributes.SERVICE_NAME: name,
                 ResourceAttributes.SERVICE_VERSION: version,
             })
 
             # Create tracer provider
+            logger.debug(
+                "phoenix_tracer_provider",
+                message="Creating tracer provider..."
+            )
             tracer_provider = TracerProvider(resource=resource)
 
             # Configure OTLP exporter
+            logger.debug(
+                "phoenix_otlp_exporter",
+                endpoint=endpoint,
+                message="Configuring OTLP exporter..."
+            )
             otlp_exporter = OTLPSpanExporter(endpoint=endpoint)
             span_processor = BatchSpanProcessor(otlp_exporter)
             tracer_provider.add_span_processor(span_processor)
@@ -79,29 +139,77 @@ class PhoenixTracer:
 
             cls._initialized = True
 
-            print("✓ Phoenix tracing initialized successfully")
-            print(f"  Service: {name} v{version}")
-            print(f"  Endpoint: {endpoint}")
+            logger.info(
+                "phoenix_initialized",
+                service_name=name,
+                service_version=version,
+                endpoint=endpoint,
+                ui_launched=should_launch_ui,
+                message="✅ Phoenix tracing initialized successfully - All LLM calls will now be traced",
+            )
+
+            # Log what Phoenix will capture
+            logger.info(
+                "phoenix_capabilities",
+                capabilities=[
+                    "LLM request prompts and responses",
+                    "Token usage (input/output/total)",
+                    "Latency metrics",
+                    "Model and provider information",
+                    "Error tracking",
+                    "Chain of thought reasoning traces"
+                ],
+                message="Phoenix will capture the following metrics"
+            )
 
         except Exception as error:
-            print(f"✗ Failed to initialize Phoenix tracing: {error}")
+            logger.error(
+                "phoenix_initialization_failed",
+                error_type=type(error).__name__,
+                error_message=str(error),
+                endpoint=endpoint,
+                message="❌ Failed to initialize Phoenix tracing",
+                exc_info=True
+            )
             raise error
 
     @classmethod
     def shutdown(cls):
         """Shutdown Phoenix tracing gracefully"""
         if not cls._initialized:
+            logger.debug(
+                "phoenix_shutdown_skipped",
+                message="Phoenix tracing not initialized, skipping shutdown"
+            )
             return
+
+        logger.info(
+            "phoenix_shutdown_started",
+            message="Shutting down Phoenix tracing..."
+        )
 
         try:
             if cls._phoenix_session:
                 # Phoenix session doesn't need explicit shutdown
-                pass
+                # It will clean up automatically when the process ends
+                logger.debug(
+                    "phoenix_session_cleanup",
+                    message="Phoenix session will cleanup automatically"
+                )
 
             cls._initialized = False
-            print("Phoenix tracing shutdown successfully")
+            logger.info(
+                "phoenix_shutdown_complete",
+                message="✅ Phoenix tracing shutdown successfully"
+            )
         except Exception as error:
-            print(f"Failed to shutdown Phoenix tracing: {error}")
+            logger.error(
+                "phoenix_shutdown_failed",
+                error_type=type(error).__name__,
+                error_message=str(error),
+                message="❌ Failed to shutdown Phoenix tracing",
+                exc_info=True
+            )
             raise error
 
     @classmethod
