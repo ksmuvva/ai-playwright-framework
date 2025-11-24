@@ -29,7 +29,7 @@ export class PythonGenerator {
       this.copyStepFiles(projectDir),
       this.copyPageObjects(projectDir),
       this.generateConfigFiles(projectDir, options),
-      this.copyRequirements(projectDir),
+      this.copyPyprojectToml(projectDir),
       this.copyBehaveConfig(projectDir),
       this.copyEnvExample(projectDir),
       this.generateReadme(projectDir, options),
@@ -235,16 +235,16 @@ config = Config()
   }
 
   /**
-   * Copy requirements.txt
+   * Copy pyproject.toml (UV package manager)
    */
-  private async copyRequirements(projectDir: string): Promise<void> {
-    Logger.step('Copying requirements.txt...');
+  private async copyPyprojectToml(projectDir: string): Promise<void> {
+    Logger.step('Copying pyproject.toml (UV package manager)...');
 
-    const src = path.join(this.templateDir, 'requirements.txt');
-    const dest = path.join(projectDir, 'requirements.txt');
+    const src = path.join(this.templateDir, 'pyproject.toml');
+    const dest = path.join(projectDir, 'pyproject.toml');
     await FileUtils.copyFile(src, dest);
 
-    Logger.success('requirements.txt copied');
+    Logger.success('pyproject.toml copied');
   }
 
   /**

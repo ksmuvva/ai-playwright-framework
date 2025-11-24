@@ -5,6 +5,17 @@
 
 [![npm version](https://badge.fury.io/js/playwright-ai-framework.svg)](https://www.npmjs.com/package/playwright-ai-framework)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version: 2.0.0](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/ksmuvva/ai-playwright-framework)
+
+---
+
+## 🚀 What's New in v2.0.0
+
+- ✨ **UV Package Manager** - 10-100x faster than pip! Automatic virtual environment management
+- ✅ **Enhanced API Key Validation** - Detects and rejects placeholder values with helpful error messages
+- ✅ **Improved Error Messages** - Better guidance when running commands from wrong directory
+- ✅ **Phoenix Tracing Docs** - Clear documentation that Phoenix must be started separately
+- ✅ **Better Setup Experience** - Automatic fallback to pip if UV not installed
 
 ---
 
@@ -103,11 +114,17 @@ playwright-ai convert recordings/create_new_contact.json
 
 ```bash
 cd my-test-suite
-behave
 
-# Or with pytest
-pytest
+# With UV (recommended - 10-100x faster!):
+uv run behave
+uv run behave --tags=@smoke
+
+# Or activate venv manually:
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+behave
 ```
+
+> 💡 **Tip:** UV automatically manages virtual environments and dependencies. It's 10-100x faster than pip!
 
 ---
 
@@ -241,8 +258,8 @@ my-test-suite/
 ├── config/                        # Configuration
 │   ├── config.py
 │   └── environments.json
-├── .env                          # Environment variables
-├── requirements.txt              # Python dependencies
+├── .env                          # Environment variables (⚠️ REPLACE PLACEHOLDER VALUES!)
+├── pyproject.toml                # Python dependencies (UV package manager)
 └── README.md
 ```
 
@@ -539,7 +556,9 @@ TEST_PASSWORD=your-password
 
 # AI Configuration
 AI_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-xxx
+# ⚠️ IMPORTANT: Replace placeholder with your REAL API key!
+# Get your key at: https://console.anthropic.com/
+ANTHROPIC_API_KEY=sk-ant-api03-[your-actual-key-here]  # NOT sk-ant-your-key-here!
 
 # Playwright Settings
 HEADLESS=false
@@ -582,7 +601,10 @@ ENABLE_VIDEO=false
 
 ```bash
 # Get API key: https://console.anthropic.com/
-export ANTHROPIC_API_KEY=sk-ant-xxx
+export ANTHROPIC_API_KEY=sk-ant-api03-[your-actual-key]
+
+# ⚠️ CRITICAL: Do NOT use placeholder values like "sk-ant-your-key-here"
+# The framework validates API keys and will reject placeholders with helpful error messages!
 ```
 
 ### OpenAI (GPT)
@@ -737,20 +759,32 @@ This framework integrates **Arize Phoenix** for comprehensive LLM observability 
 
 ### Quick Setup
 
-1. **Enable Phoenix Tracing**
+1. **Start Phoenix Server** (Required - must be running BEFORE tests!)
+
+```bash
+# Install Phoenix
+pip install arize-phoenix
+
+# Start Phoenix server
+python -m phoenix.server.main serve
+
+# Server runs at: http://localhost:6006
+```
+
+2. **Enable Phoenix Tracing in .env**
 
 ```bash
 # In your .env file
 ENABLE_PHOENIX_TRACING=true
 PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
-PHOENIX_LAUNCH_UI=true
+# Note: Phoenix server must be started separately (step 1 above)
 ```
 
-2. **Access Phoenix UI**
+3. **Access Phoenix UI**
 
 ```bash
-# Phoenix automatically launches when using Python helpers
-# Access at: http://localhost:6006
+# Open browser to: http://localhost:6006
+# Phoenix provides real-time LLM observability
 ```
 
 ### What Phoenix Tracks
@@ -781,17 +815,30 @@ See [PHOENIX_INTEGRATION.md](./PHOENIX_INTEGRATION.md) for complete documentatio
 
 **1. AI API Key not working**
 ```bash
-# Verify key is set
+# ⚠️ CRITICAL: Make sure you're NOT using a placeholder value!
+# Placeholder values like "sk-ant-your-key-here" will be rejected.
+
+# Verify key is set correctly
 echo $ANTHROPIC_API_KEY
 
-# Update .env file
-ANTHROPIC_API_KEY=sk-ant-your-key-here
+# Get your REAL API key from: https://console.anthropic.com/
+# Update .env file with the real key:
+ANTHROPIC_API_KEY=sk-ant-api03-[paste-your-actual-key-here]
+
+# The framework will show a clear error if you use a placeholder!
 ```
 
-**2. Playwright not installed**
+**2. Dependencies not installed or Playwright not found**
 ```bash
-# Install Playwright
-pip install playwright
+# Option 1: With UV (recommended - 10-100x faster!)
+# Install UV first: https://docs.astral.sh/uv/
+uv sync
+uv run playwright install chromium
+
+# Option 2: Traditional method with pip
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -e .
 playwright install chromium
 ```
 
@@ -805,9 +852,34 @@ cat locator_healing_log.json
 ```
 
 **4. Power Apps not loading**
-```python
+```bash
 # Increase timeout in .env
 NAVIGATION_TIMEOUT=60000
+```
+
+**5. Phoenix tracing not working**
+```bash
+# ⚠️ Phoenix must be started SEPARATELY before running tests!
+
+# Start Phoenix server first:
+pip install arize-phoenix
+python -m phoenix.server.main serve
+
+# Then run your tests in a different terminal
+# Or disable Phoenix tracing:
+ENABLE_PHOENIX_TRACING=false
+```
+
+**6. Running from wrong directory**
+```bash
+# ❌ Error: "Not in a test framework directory"
+# ✅ Solution: Navigate to your project root (where features/ and steps/ exist)
+
+cd path/to/your-project-root
+playwright-ai record --url https://your-app.com
+
+# Or initialize a new framework:
+playwright-ai init
 ```
 
 ---

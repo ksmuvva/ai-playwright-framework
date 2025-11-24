@@ -116,10 +116,27 @@ async function validateProjectDirectory(): Promise<void> {
   const hasSteps = await FileUtils.directoryExists('steps');
 
   if (!hasFeatures && !hasSteps) {
-    Logger.warning('Not in a test framework directory.');
-    Logger.info('Make sure you\'re in the project root directory, or initialize a new framework:');
-    Logger.code('  playwright-ai init');
-    throw new Error('Invalid project directory');
+    const cwd = process.cwd();
+    Logger.error('❌ Not in a test framework directory!');
+    Logger.newline();
+    Logger.error('Current directory: ' + cwd);
+    Logger.error('Required directories not found: features/ and steps/');
+    Logger.newline();
+    Logger.info('📍 You need to be in the project ROOT directory (where features/ and steps/ exist)');
+    Logger.newline();
+    Logger.title('How to fix:');
+    Logger.newline();
+    Logger.step('Option 1: Navigate to your existing project root');
+    Logger.code('  cd path/to/your/test-project  # Where features/ and steps/ are located');
+    Logger.code('  playwright-ai record --url https://your-app.com');
+    Logger.newline();
+    Logger.step('Option 2: Initialize a new test framework first');
+    Logger.code('  playwright-ai init  # Creates a new framework with proper structure');
+    Logger.code('  cd your-project-name');
+    Logger.code('  playwright-ai record --url https://your-app.com');
+    Logger.newline();
+    Logger.info('💡 Tip: Look for the directory containing features/, steps/, pages/, helpers/');
+    throw new Error('Invalid project directory - not in framework root');
   }
 }
 

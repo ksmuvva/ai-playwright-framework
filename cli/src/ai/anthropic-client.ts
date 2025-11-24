@@ -144,7 +144,7 @@ export class AnthropicClient implements AIClient {
   private model: string;
   private chainOfThought: ChainOfThought;
   private treeOfThought: TreeOfThought;
-  private tracer = trace.getTracer('ai-playwright-framework', '1.0.0');
+  private tracer = trace.getTracer('ai-playwright-framework', '2.0.0');
   private responseCache: LRUCache<any>;
   private rateLimiter: RateLimiter;
 
@@ -210,14 +210,59 @@ export class AnthropicClient implements AIClient {
   }
 
   /**
-   * Validate API key format (BUG-002 fix)
+   * Validate API key format and reject placeholder values
+   * CRITICAL FIX: Detects placeholder values from .env.example that users forget to replace
    */
   private validateApiKey(key: string): void {
+    // Check basic format
     if (!key.startsWith('sk-ant-')) {
       throw new Error('Invalid Anthropic API key format. Keys should start with "sk-ant-"');
     }
+
+    // Check minimum length
     if (key.length < 20) {
       throw new Error('API key appears to be invalid (too short)');
+    }
+
+    // CRITICAL: Detect common placeholder values from .env.example
+    const placeholderPatterns = [
+      'sk-ant-your-key-here',
+      'sk-ant-api-key-here',
+      'sk-ant-replace-this',
+      'sk-ant-add-your-key',
+      'sk-ant-example',
+      'sk-ant-placeholder'
+    ];
+
+    const lowerKey = key.toLowerCase();
+    for (const placeholder of placeholderPatterns) {
+      if (lowerKey === placeholder || lowerKey.includes('your-key') || lowerKey.includes('placeholder')) {
+        Logger.error('❌ PLACEHOLDER API KEY DETECTED');
+        Logger.error('');
+        Logger.error('You are using a placeholder API key from .env.example!');
+        Logger.error('This will NOT work. You must replace it with a real API key.');
+        Logger.error('');
+        Logger.error('How to fix:');
+        Logger.error('1. Get your API key from: https://console.anthropic.com/');
+        Logger.error('2. Open your .env file');
+        Logger.error('3. Replace the placeholder with your real API key:');
+        Logger.error('   ANTHROPIC_API_KEY=sk-ant-api03-[your-actual-key-here]');
+        Logger.error('');
+        throw new Error(
+          'Invalid API key: Placeholder value detected. Please set a real Anthropic API key in your .env file. ' +
+          'Get your key at: https://console.anthropic.com/'
+        );
+      }
+    }
+
+    // Validate that it looks like a real key (has enough entropy)
+    // Real Anthropic keys have high entropy and don't contain common words
+    const suspiciousPatterns = ['test', 'demo', 'sample', 'fake', 'invalid'];
+    for (const pattern of suspiciousPatterns) {
+      if (lowerKey.includes(pattern)) {
+        Logger.warning(`⚠️  API key contains suspicious pattern: "${pattern}"`);
+        Logger.warning('If API calls fail, verify you are using a valid API key from https://console.anthropic.com/');
+      }
     }
   }
 
