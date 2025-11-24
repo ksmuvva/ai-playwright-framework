@@ -50,7 +50,15 @@ class ScreenshotManager:
         try:
             cls.step_counter += 1
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            clean_name = name.replace(' ', '_').replace('/', '_')[:50]
+
+            # FIX: Issue #5 - Sanitize filename for Windows (remove all invalid characters)
+            # Windows invalid characters: < > : " / \ | ? *
+            clean_name = name
+            invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+            for char in invalid_chars:
+                clean_name = clean_name.replace(char, '_')
+            # Also replace spaces and limit length
+            clean_name = clean_name.replace(' ', '_')[:50]
 
             filename = f"{cls.step_counter:03d}_{timestamp}_{clean_name}.png"
 
@@ -116,7 +124,13 @@ class ScreenshotManager:
             if element.count() > 0:
                 cls.step_counter += 1
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                clean_name = name.replace(' ', '_')[:50]
+
+                # FIX: Issue #5 - Sanitize filename for Windows (remove all invalid characters)
+                clean_name = name
+                invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+                for char in invalid_chars:
+                    clean_name = clean_name.replace(char, '_')
+                clean_name = clean_name.replace(' ', '_')[:50]
 
                 filename = f"{cls.step_counter:03d}_{timestamp}_{clean_name}_element.png"
                 filepath = cls.screenshot_dir / filename

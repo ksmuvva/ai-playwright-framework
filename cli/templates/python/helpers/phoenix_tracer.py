@@ -7,6 +7,9 @@ Captures all LLM API calls, responses, token usage, and latency metrics.
 
 import os
 import sys
+import atexit
+import platform
+from pathlib import Path
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -86,6 +89,28 @@ class PhoenixTracer:
         )
 
         try:
+            # FIX: Issue #6 - Configure Phoenix to use persistent directory (not temp) to avoid Windows cleanup errors
+            # Set up persistent Phoenix working directory
+            is_windows = platform.system() == 'Windows'
+            if is_windows:
+                # On Windows, use user's home directory to avoid temp file cleanup issues
+                phoenix_dir = Path.home() / '.phoenix'
+            else:
+                # On Unix, use standard location
+                phoenix_dir = Path.home() / '.phoenix'
+
+            phoenix_dir.mkdir(parents=True, exist_ok=True)
+
+            logger.debug(
+                "phoenix_working_directory",
+                path=str(phoenix_dir),
+                message=f"📋 Ensuring phoenix working directory: {phoenix_dir}"
+            )
+            print(f"📋 Ensuring phoenix working directory: {phoenix_dir}")
+
+            # Set Phoenix working directory environment variable
+            os.environ['PHOENIX_WORKING_DIR'] = str(phoenix_dir)
+
             # Launch Phoenix UI if requested
             should_launch_ui = launch_ui and os.getenv('PHOENIX_LAUNCH_UI', 'true').lower() != 'false'
 
@@ -94,7 +119,8 @@ class PhoenixTracer:
                     "phoenix_ui_launching",
                     message="Launching Phoenix UI server..."
                 )
-                cls._phoenix_session = px.launch_app()
+                # Launch with explicit working directory to avoid temp file issues
+                cls._phoenix_session = px.launch_app(working_dir=str(phoenix_dir))
                 logger.info(
                     "phoenix_ui_launched",
                     ui_url="http://localhost:6006",
@@ -175,7 +201,10 @@ class PhoenixTracer:
 
     @classmethod
     def shutdown(cls):
-        """Shutdown Phoenix tracing gracefully"""
+        """
+        Shutdown Phoenix tracing gracefully
+        FIX: Issue #6 - Handle Windows file locking errors gracefully
+        """
         if not cls._initialized:
             logger.debug(
                 "phoenix_shutdown_skipped",
@@ -197,20 +226,41 @@ class PhoenixTracer:
                     message="Phoenix session will cleanup automatically"
                 )
 
+                # FIX: On Windows, force flush any pending writes to avoid file locking
+                is_windows = platform.system() == 'Windows'
+                if is_windows:
+                    try:
+                        # Give Phoenix time to close database connections gracefully
+                        import time
+                        time.sleep(0.1)
+                    except Exception:
+                        pass  # Ignore timing errors
+
             cls._initialized = False
             logger.info(
                 "phoenix_shutdown_complete",
                 message="✅ Phoenix tracing shutdown successfully"
             )
         except Exception as error:
-            logger.error(
-                "phoenix_shutdown_failed",
-                error_type=type(error).__name__,
-                error_message=str(error),
-                message="❌ Failed to shutdown Phoenix tracing",
-                exc_info=True
-            )
-            raise error
+            # FIX: On Windows, PermissionError during cleanup is expected and can be safely ignored
+            is_windows = platform.system() == 'Windows'
+            if is_windows and isinstance(error, PermissionError):
+                logger.warning(
+                    "phoenix_shutdown_permission_warning",
+                    error_message=str(error),
+                    message="⚠️  Phoenix cleanup warning on Windows (can be safely ignored)"
+                )
+                cls._initialized = False
+                # Don't raise the error on Windows - it's a known issue with temp file cleanup
+            else:
+                logger.error(
+                    "phoenix_shutdown_failed",
+                    error_type=type(error).__name__,
+                    error_message=str(error),
+                    message="❌ Failed to shutdown Phoenix tracing",
+                    exc_info=True
+                )
+                raise error
 
     @classmethod
     def is_initialized(cls) -> bool:
