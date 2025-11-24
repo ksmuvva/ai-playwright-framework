@@ -2,52 +2,65 @@
 
 This guide explains how to use Arize Phoenix for LLM observability and tracing in the AI Playwright Framework.
 
+## 🎯 What's New in v2.0.0
+
+- ✅ **Auto-Launch Phoenix UI** - Phoenix now starts automatically when the framework initializes!
+- ✅ **Structured Logging** - Detailed, color-coded logs with timestamps and context
+- ✅ **Early Initialization** - Phoenix starts in `before_all()` hook, capturing all LLM calls
+- ✅ **Comprehensive Logging** - Every framework operation is logged with rich context
+- ✅ **Token Usage Tracking** - Real-time visibility into AI costs and performance
+
 ## Overview
 
 Arize Phoenix is integrated into this framework to provide comprehensive observability for all LLM interactions. It captures:
 
 - **All LLM API calls** (Anthropic Claude, OpenAI)
-- **Token usage** (input tokens, output tokens, total tokens)
+- **Token usage** (input tokens, output tokens, total tokens with cost estimation)
 - **Response latency** (milliseconds per request)
-- **Request/response payloads**
-- **Error tracking** and exceptions
+- **Request/response payloads** (prompts and completions)
+- **Error tracking** and exceptions with full stack traces
 - **Chain of Thought** and **Tree of Thought** reasoning traces
+- **Framework operations** (browser launch, authentication, scenario execution)
 
 ## Quick Start
 
 ### 1. Install Dependencies
 
-**TypeScript/CLI:**
-```bash
-cd cli
-npm install
-```
-
-**Python:**
+**Python (Recommended):**
 ```bash
 cd cli/templates/python
-pip install -r requirements.txt
+uv sync  # or: pip install -r requirements.txt
 ```
+
+The framework now includes:
+- `arize-phoenix>=12.16.0` - Phoenix observability platform
+- `opentelemetry-*` - OpenTelemetry SDK and exporters
+- `structlog>=24.1.0` - Structured logging library
+- `colorama>=0.4.6` - Cross-platform colored terminal output
 
 ### 2. Configure Environment Variables
 
-Add the following to your `.env` file:
+Add the following to your `.env` file (or use the provided `.env.example`):
 
 ```bash
 # Phoenix Tracing & Observability
-ENABLE_PHOENIX_TRACING=true
+ENABLE_PHOENIX_TRACING=true        # Enable Phoenix tracing (default: true)
+PHOENIX_LAUNCH_UI=true             # Auto-launch Phoenix UI (default: true)
 PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
-PHOENIX_LAUNCH_UI=true
 SERVICE_NAME=ai-playwright-framework
-SERVICE_VERSION=1.0.0
+SERVICE_VERSION=2.0.0
+
+# Logging Configuration
+LOG_LEVEL=INFO                     # DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
 ```
 
-### 3. Launch Phoenix UI (Python)
+### 3. Run Your Tests - Phoenix Launches Automatically! 🚀
 
-Phoenix automatically launches when you use the Python helpers:
+Phoenix now starts automatically when you run tests. No manual setup required!
 
-```python
-from helpers.phoenix_tracer import PhoenixTracer
+```bash
+# Phoenix will auto-launch and you'll see detailed logs:
+behave features/your_test.feature
 
 # Initialize Phoenix (this happens automatically in reasoning.py)
 PhoenixTracer.initialize()

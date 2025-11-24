@@ -23,6 +23,15 @@ except ImportError:
     PhoenixTracer = None
     get_tracer = None
 
+try:
+    from .logger import get_logger, log_ai_request, log_ai_response, log_error
+    logger = get_logger("reasoning")
+except ImportError:
+    # Fallback if logger not available
+    import logging
+    logger = logging.getLogger("reasoning")
+    logger.setLevel(logging.INFO)
+
 
 @dataclass
 class ReasoningStep:
@@ -80,12 +89,23 @@ class ChainOfThought:
         self.ai_client = ai_client
         self.model = model or os.getenv('AI_MODEL', 'claude-sonnet-4-5-20250929')
 
+        logger.info(
+            "cot_initialized",
+            model=self.model,
+            message="Chain of Thought reasoner initialized"
+        )
+
         # Initialize Phoenix tracing if available
         if PhoenixTracer and not PhoenixTracer.is_initialized():
             try:
+                logger.debug("cot_phoenix_init", message="Initializing Phoenix tracing from CoT...")
                 PhoenixTracer.initialize()
             except Exception as e:
-                print(f"Warning: Failed to initialize Phoenix tracing: {e}")
+                logger.warning(
+                    "cot_phoenix_init_failed",
+                    error=str(e),
+                    message="Failed to initialize Phoenix tracing from CoT"
+                )
 
         self.tracer = get_tracer() if get_tracer else None
 
@@ -106,15 +126,41 @@ class ChainOfThought:
         Returns:
             ChainOfThoughtResult with steps and final answer
         """
+        logger.info(
+            "cot_reasoning_started",
+            max_steps=max_steps,
+            prompt_length=len(prompt),
+            message="🧠 Starting Chain of Thought reasoning..."
+        )
+
         cot_prompt = self._build_cot_prompt(prompt, context, max_steps)
 
         try:
+            start_time = time.time()
+
             # Call AI with the prompt
             response = self._call_ai(cot_prompt)
-            return self._parse_cot_response(response)
+            result = self._parse_cot_response(response)
+
+            duration = (time.time() - start_time) * 1000
+
+            logger.info(
+                "cot_reasoning_complete",
+                steps_generated=len(result.steps),
+                duration_ms=duration,
+                message=f"✅ Chain of Thought reasoning completed with {len(result.steps)} steps"
+            )
+
+            return result
 
         except Exception as e:
-            print(f"Chain of Thought reasoning failed: {e}")
+            logger.error(
+                "cot_reasoning_failed",
+                error_type=type(e).__name__,
+                error_message=str(e),
+                message="❌ Chain of Thought reasoning failed",
+                exc_info=True
+            )
             raise
 
     def _build_cot_prompt(self, prompt: str, context: str, max_steps: int) -> str:
@@ -152,6 +198,14 @@ Begin your step-by-step analysis:"""
         ai_provider = os.getenv('AI_PROVIDER', 'anthropic')
         start_time = time.time()
 
+        logger.debug(
+            "cot_ai_request",
+            provider=ai_provider,
+            model=self.model,
+            prompt_length=len(prompt),
+            message=f"Calling {ai_provider} API for Chain of Thought..."
+        )
+
         # Create span for tracing
         span_context = self.tracer.start_as_current_span(
             f'{ai_provider}.chainOfThought',
@@ -170,6 +224,21 @@ Begin your step-by-step analysis:"""
                 )
 
                 response_text = response.content[0].text
+                duration = (time.time() - start_time) * 1000
+
+                # Log token usage
+                if hasattr(response, 'usage'):
+                    logger.info(
+                        "cot_ai_response",
+                        provider=ai_provider,
+                        model=self.model,
+                        input_tokens=response.usage.input_tokens,
+                        output_tokens=response.usage.output_tokens,
+                        total_tokens=response.usage.input_tokens + response.usage.output_tokens,
+                        duration_ms=duration,
+                        response_length=len(response_text),
+                        message=f"✅ AI response received ({response.usage.input_tokens + response.usage.output_tokens} tokens, {duration:.0f}ms)"
+                    )
 
                 # Add tracing attributes
                 if span_context and add_llm_response_attributes:
@@ -180,7 +249,7 @@ Begin your step-by-step analysis:"""
                         response.usage.input_tokens if hasattr(response, 'usage') else None,
                         response.usage.output_tokens if hasattr(response, 'usage') else None
                     )
-                    span.set_attribute('llm.latency_ms', (time.time() - start_time) * 1000)
+                    span.set_attribute('llm.latency_ms', duration)
                     span.set_status(StatusCode.OK)
 
                 return response_text
@@ -195,6 +264,21 @@ Begin your step-by-step analysis:"""
                 )
 
                 response_text = response.choices[0].message.content
+                duration = (time.time() - start_time) * 1000
+
+                # Log token usage
+                if hasattr(response, 'usage'):
+                    logger.info(
+                        "cot_ai_response",
+                        provider=ai_provider,
+                        model=self.model,
+                        prompt_tokens=response.usage.prompt_tokens,
+                        completion_tokens=response.usage.completion_tokens,
+                        total_tokens=response.usage.total_tokens,
+                        duration_ms=duration,
+                        response_length=len(response_text),
+                        message=f"✅ AI response received ({response.usage.total_tokens} tokens, {duration:.0f}ms)"
+                    )
 
                 # Add tracing attributes
                 if span_context and add_llm_response_attributes:
@@ -205,7 +289,7 @@ Begin your step-by-step analysis:"""
                         response.usage.prompt_tokens if hasattr(response, 'usage') else None,
                         response.usage.completion_tokens if hasattr(response, 'usage') else None
                     )
-                    span.set_attribute('llm.latency_ms', (time.time() - start_time) * 1000)
+                    span.set_attribute('llm.latency_ms', duration)
                     span.set_status(StatusCode.OK)
 
                 return response_text
@@ -214,6 +298,18 @@ Begin your step-by-step analysis:"""
                 raise ValueError(f"Unsupported AI provider: {ai_provider}")
 
         except Exception as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(
+                "cot_ai_request_failed",
+                provider=ai_provider,
+                model=self.model,
+                error_type=type(e).__name__,
+                error_message=str(e),
+                duration_ms=duration,
+                message=f"❌ AI request failed after {duration:.0f}ms",
+                exc_info=True
+            )
+
             # Record error in span
             if span_context:
                 span = trace.get_current_span()
@@ -279,6 +375,12 @@ class TreeOfThought:
         """
         self.ai_client = ai_client
         self.model = model or os.getenv('AI_MODEL', 'claude-sonnet-4-5-20250929')
+
+        logger.info(
+            "tot_initialized",
+            model=self.model,
+            message="Tree of Thought reasoner initialized"
+        )
 
     def reason(
         self,
