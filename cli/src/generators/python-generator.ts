@@ -31,7 +31,7 @@ export class PythonGenerator {
       this.generateConfigFiles(projectDir, options),
       this.copyPyprojectToml(projectDir),
       this.copyBehaveConfig(projectDir),
-      this.copyEnvExample(projectDir),
+      this.copyEnvExample(projectDir, options),
       this.generateReadme(projectDir, options),
       this.copyExampleFeature(projectDir)
     ]);
@@ -68,6 +68,7 @@ export class PythonGenerator {
 
   /**
    * Copy helper files (PERF-001 fix - parallelized)
+   * FIX: Issue #3 - Added missing phoenix_tracer.py, logger.py, and reasoning.py
    */
   private async copyHelpers(projectDir: string): Promise<void> {
     Logger.step('Copying helper files...');
@@ -77,7 +78,10 @@ export class PythonGenerator {
       'healing_locator.py',
       'wait_manager.py',
       'data_generator.py',
-      'screenshot_manager.py'
+      'screenshot_manager.py',
+      'phoenix_tracer.py',    // FIX: Was missing - needed for Phoenix tracing
+      'logger.py',             // FIX: Was missing - needed for structured logging
+      'reasoning.py'           // FIX: Was missing - needed for AI reasoning
     ];
 
     // Parallelize file copy operations
@@ -100,16 +104,17 @@ export class PythonGenerator {
 
   /**
    * Copy step files (PERF-001 fix - parallelized)
+   * FIX: Issue #4 - environment.py must be at project root, not in steps/
    */
   private async copyStepFiles(projectDir: string): Promise<void> {
     Logger.step('Copying step definitions...');
 
     // Parallelize file copy operations
     await Promise.all([
-      // Copy environment.py from features/ directory
+      // FIX: Copy environment.py to project root (not steps/) - Behave requires it at root
       FileUtils.copyFile(
         path.join(this.templateDir, 'features', 'environment.py'),
-        path.join(projectDir, 'steps', 'environment.py')
+        path.join(projectDir, 'environment.py')
       ),
       // Copy common_steps.py from features/steps/ directory
       FileUtils.copyFile(
@@ -261,9 +266,9 @@ config = Config()
   }
 
   /**
-   * Copy .env.example and create secure .env file
+   * Copy .env.example and create secure .env file with actual API key
    */
-  private async copyEnvExample(projectDir: string): Promise<void> {
+  private async copyEnvExample(projectDir: string, options?: InitOptions): Promise<void> {
     Logger.step('Copying .env.example...');
 
     const src = path.join(this.templateDir, '.env.example');
@@ -271,7 +276,39 @@ config = Config()
     await FileUtils.copyFile(src, dest);
 
     // Create .env file with secure permissions (0o600)
-    const envContent = await FileUtils.readFile(src);
+    let envContent = await FileUtils.readFile(src);
+
+    // Inject actual API key if provided (FIX: Issue #1 - API key not saved to project .env)
+    if (options?.apiKey && options?.aiProvider) {
+      if (options.aiProvider === 'anthropic') {
+        // Replace the placeholder Anthropic API key with the real one
+        envContent = envContent.replace(
+          /ANTHROPIC_API_KEY=.*/,
+          `ANTHROPIC_API_KEY=${options.apiKey}`
+        );
+      } else if (options.aiProvider === 'openai') {
+        // Replace the placeholder OpenAI API key with the real one
+        envContent = envContent.replace(
+          /OPENAI_API_KEY=.*/,
+          `OPENAI_API_KEY=${options.apiKey}`
+        );
+      }
+
+      // Update AI_PROVIDER and AI_MODEL if specified
+      if (options.aiProvider) {
+        envContent = envContent.replace(
+          /AI_PROVIDER=.*/,
+          `AI_PROVIDER=${options.aiProvider}`
+        );
+      }
+      if (options.aiModel) {
+        envContent = envContent.replace(
+          /AI_MODEL=.*/,
+          `AI_MODEL=${options.aiModel}`
+        );
+      }
+    }
+
     await FileUtils.writeSecureFile(
       path.join(projectDir, '.env'),
       envContent
