@@ -42,20 +42,22 @@ export class PythonGenerator {
   /**
    * Create directory structure
    * PERFORMANCE: Parallelized directory creation
+   * FIX P0-4: Use Behave-compliant directory structure
    */
   private async createDirectoryStructure(projectDir: string): Promise<void> {
     Logger.step('Creating directory structure...');
 
     const directories = [
       'features',
-      'steps',
+      'features/steps',  // FIX P0-4: Behave expects steps inside features/
       'helpers',
       'pages',
       'fixtures',
       'reports/screenshots',
       'reports/videos',
       'auth_states',
-      'config'
+      'config',
+      'scripts'  // Add scripts directory for utility scripts
     ];
 
     // Create all directories in parallel
@@ -104,26 +106,26 @@ export class PythonGenerator {
 
   /**
    * Copy step files (PERF-001 fix - parallelized)
-   * FIX: Issue #4 - environment.py must be at project root, not in steps/
+   * FIX P0-2: environment.py must be in features/ directory for Behave
    */
   private async copyStepFiles(projectDir: string): Promise<void> {
     Logger.step('Copying step definitions...');
 
     // Parallelize file copy operations
     await Promise.all([
-      // FIX: Copy environment.py to project root (not steps/) - Behave requires it at root
+      // FIX P0-2: Copy environment.py to features/ directory (Behave standard location)
       FileUtils.copyFile(
         path.join(this.templateDir, 'features', 'environment.py'),
-        path.join(projectDir, 'environment.py')
+        path.join(projectDir, 'features', 'environment.py')
       ),
-      // Copy common_steps.py from features/steps/ directory
+      // Copy common_steps.py to features/steps/ directory (Behave standard)
       FileUtils.copyFile(
         path.join(this.templateDir, 'features', 'steps', 'common_steps.py'),
-        path.join(projectDir, 'steps', 'common_steps.py')
+        path.join(projectDir, 'features', 'steps', 'common_steps.py')
       ),
       // Create __init__.py for steps package
       FileUtils.writeFile(
-        path.join(projectDir, 'steps', '__init__.py'),
+        path.join(projectDir, 'features', 'steps', '__init__.py'),
         '# Step definitions\n'
       )
     ]);
