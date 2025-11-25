@@ -27,23 +27,23 @@ async function convertRecording(
   try {
     Logger.title('🔄 Converting Recording to BDD');
 
-    // Validate file exists
-    const exists = await FileUtils.fileExists(recordingFile);
-    if (!exists) {
-      throw new Error(`Recording file not found: ${recordingFile}`);
-    }
+    // Comprehensive file validation
+    const validatedFile = await validateRecordingFile(recordingFile);
 
     // Extract scenario name
     const scenarioName = cmdOptions.scenarioName ||
       path.basename(recordingFile, path.extname(recordingFile));
 
     Logger.info(`Scenario: ${scenarioName}`);
-    Logger.info(`Recording file: ${recordingFile}`);
+    Logger.info(`Recording file: ${validatedFile}`);
     Logger.newline();
+
+    // Ensure required directories exist
+    await ensureRequiredDirectories(cmdOptions.outputDir);
 
     // Parse recording
     const spinner = ora('Parsing recording...').start();
-    const recording = await parseRecording(recordingFile);
+    const recording = await parseRecording(validatedFile);
     spinner.succeed(`Parsed ${recording.actions.length} actions`);
 
     // Convert to BDD using AI
@@ -64,15 +64,130 @@ async function convertRecording(
   }
 }
 
+/**
+ * Comprehensive recording file validation with helpful error messages
+ */
+async function validateRecordingFile(filePath: string): Promise<string> {
+  const fs = require('fs').promises;
+  const normalizedPath = path.resolve(filePath);
+
+  // Check if file exists
+  try {
+    await fs.access(normalizedPath);
+  } catch {
+    // Try alternative path in recordings directory
+    const baseName = path.basename(filePath);
+    const altPath = path.join(process.cwd(), 'recordings', baseName);
+
+    let suggestion = '';
+    try {
+      await fs.access(altPath);
+      suggestion = `\n\nDid you mean: ${altPath}`;
+    } catch {
+      // No alternative found
+    }
+
+    throw new Error(
+      `Recording file not found: ${normalizedPath}${suggestion}\n\n` +
+      `To create a recording:\n` +
+      `  playwright-ai record --url https://your-app.com`
+    );
+  }
+
+  // Check if it's a file (not a directory)
+  const stats = await fs.stat(normalizedPath);
+  if (stats.isDirectory()) {
+    throw new Error(`Path is a directory, not a file: ${normalizedPath}`);
+  }
+
+  // Check file is not empty
+  if (stats.size === 0) {
+    throw new Error(`Recording file is empty: ${normalizedPath}`);
+  }
+
+  return normalizedPath;
+}
+
+/**
+ * Ensure all required directories exist before writing files
+ */
+async function ensureRequiredDirectories(outputDir: string): Promise<void> {
+  const fs = require('fs').promises;
+  const requiredDirs = [
+    'features',
+    'steps',
+    'fixtures',
+    'recordings',
+    'pages',
+    'helpers',
+    'config',
+    'reports',
+    path.join('reports', 'screenshots'),
+  ];
+
+  for (const dir of requiredDirs) {
+    const fullPath = path.join(outputDir, dir);
+    try {
+      await fs.mkdir(fullPath, { recursive: true });
+    } catch (error) {
+      // Directory might already exist, which is fine
+      Logger.warning(`Could not create directory ${dir}: ${error}`);
+    }
+  }
+
+  Logger.info('✓ All required directories verified');
+}
+
 async function parseRecording(filePath: string): Promise<any> {
   // Read the recording file
   const content = await FileUtils.readFile(filePath);
 
-  // Parse Playwright Python code to extract actions
-  // This is a simplified parser - in production, you'd use proper AST parsing
+  // Try to parse as JSON first (preferred format)
+  try {
+    const json = JSON.parse(content);
 
+    // Validate JSON structure
+    if (json.actions && Array.isArray(json.actions)) {
+      // Normalize action format
+      const normalizedActions = json.actions.map((action: any) => {
+        // Handle JSONL-style format (name instead of type)
+        if (action.name && !action.type) {
+          return {
+            type: action.name,
+            selector: action.selector,
+            value: action.text || action.value,
+            url: action.url,
+          };
+        }
+        return action;
+      });
+
+      if (normalizedActions.length === 0) {
+        throw new Error('Recording has no actions');
+      }
+
+      return { actions: normalizedActions };
+    }
+
+    // If json is just an array, wrap it
+    if (Array.isArray(json)) {
+      if (json.length === 0) {
+        throw new Error('Recording has no actions');
+      }
+      return { actions: json };
+    }
+
+    throw new Error("Recording JSON missing 'actions' array");
+
+  } catch (jsonError) {
+    // If not valid JSON, try parsing as Playwright Python code
+    Logger.warning('Not valid JSON, attempting to parse as Playwright code...');
+    return parsePlaywrightCode(content);
+  }
+}
+
+function parsePlaywrightCode(content: string): any {
   const actions: any[] = [];
-
   const lines = content.split('\n');
 
   for (const line of lines) {
@@ -126,8 +241,10 @@ async function parseRecording(filePath: string): Promise<any> {
         });
       }
     }
+  }
 
-    // Add more parsers for other Playwright actions as needed
+  if (actions.length === 0) {
+    throw new Error('No valid Playwright actions found in recording');
   }
 
   return { actions };

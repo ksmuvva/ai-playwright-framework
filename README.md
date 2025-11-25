@@ -110,11 +110,34 @@ playwright-ai convert recordings/create_new_contact.json
 # ✅ fixtures/create_new_contact_data.json
 ```
 
-### Run Your Tests
+### Setup Dependencies
+
+⚠️ **CRITICAL:** After generating the framework, you MUST install dependencies AND Playwright browsers:
 
 ```bash
 cd my-test-suite
 
+# Step 1: Install Python dependencies
+uv sync
+
+# Step 2: Install Playwright browsers (REQUIRED!)
+uv run python -m playwright install chromium
+
+# On Linux, also install system dependencies:
+sudo playwright install-deps chromium
+```
+
+**Or use the automated setup script:**
+
+```bash
+uv sync && uv run python -m scripts.setup
+```
+
+> 💡 **Why two steps?** UV installs Python packages only. Playwright browsers are ~200MB binary downloads that require a separate installation step. This is by design for security and performance.
+
+### Run Your Tests
+
+```bash
 # With UV (recommended - 10-100x faster!):
 uv run behave
 uv run behave --tags=@smoke
@@ -828,12 +851,33 @@ ANTHROPIC_API_KEY=sk-ant-api03-[paste-your-actual-key-here]
 # The framework will show a clear error if you use a placeholder!
 ```
 
-**2. Dependencies not installed or Playwright not found**
+**2. "Browser executable not found" after running uv sync**
+```bash
+# ⚠️ CRITICAL: UV does NOT automatically install Playwright browsers!
+# This is the #1 most common issue with UV + Playwright
+
+# The fix: Run the browser install command
+uv run python -m playwright install chromium
+
+# On Linux, also run:
+sudo playwright install-deps chromium
+
+# Verify it worked:
+uv run python -c "
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    b = p.chromium.launch(headless=True)
+    b.close()
+    print('✅ Browser working!')
+"
+```
+
+**3. Dependencies not installed or Playwright not found**
 ```bash
 # Option 1: With UV (recommended - 10-100x faster!)
 # Install UV first: https://docs.astral.sh/uv/
 uv sync
-uv run playwright install chromium
+uv run python -m playwright install chromium  # Don't forget this!
 
 # Option 2: Traditional method with pip
 python3 -m venv .venv
@@ -842,7 +886,7 @@ pip install -e .
 playwright install chromium
 ```
 
-**3. Locators still failing**
+**4. Locators still failing**
 ```bash
 # Enable debug mode
 DEBUG=true behave
@@ -851,13 +895,13 @@ DEBUG=true behave
 cat locator_healing_log.json
 ```
 
-**4. Power Apps not loading**
+**5. Power Apps not loading**
 ```bash
 # Increase timeout in .env
 NAVIGATION_TIMEOUT=60000
 ```
 
-**5. Phoenix tracing not working**
+**6. Phoenix tracing not working**
 ```bash
 # ⚠️ Phoenix must be started SEPARATELY before running tests!
 
@@ -870,7 +914,7 @@ python -m phoenix.server.main serve
 ENABLE_PHOENIX_TRACING=false
 ```
 
-**6. Running from wrong directory**
+**7. Running from wrong directory**
 ```bash
 # ❌ Error: "Not in a test framework directory"
 # ✅ Solution: Navigate to your project root (where features/ and steps/ exist)
