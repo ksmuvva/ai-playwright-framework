@@ -28,12 +28,23 @@ export interface ConvertOptions {
 }
 
 export interface PlaywrightAction {
-  type: 'navigate' | 'click' | 'fill' | 'select' | 'check' | 'press' | 'wait';
+  type: 'navigate' | 'click' | 'fill' | 'select' | 'check' | 'press' | 'wait' | 'goto' | 'expect' | 'popup' | 'close' | 'hover' | 'dblclick';
   selector?: string;
   value?: string;
   url?: string;
   key?: string;
   timestamp?: number;
+
+  // Extended fields for modern Playwright API
+  locatorType?: 'role' | 'text' | 'label' | 'placeholder' | 'testid' | 'locator' | 'css' | 'xpath';
+  locatorValue?: string;
+  elementName?: string;
+  assertion?: {
+    type: 'url' | 'title' | 'visible' | 'text' | 'count' | 'value';
+    expected: string;
+    matcher?: string;
+  };
+  pageContext?: string;
 }
 
 export interface BDDOutput {
@@ -319,3 +330,30 @@ export interface TemplateContext {
     feature: string;
   }>;
 }
+
+/**
+ * Structured output schema for BDD generation
+ * ROOT CAUSE FIX (RC7): Ensures reliable AI response parsing using tool_use
+ */
+export interface BDDGenerationToolInput {
+  feature_file: string;           // Complete Gherkin feature file
+  step_definitions: string;       // Complete Python/TS step definitions
+  test_data?: {                   // Extracted test data
+    users?: Array<{
+      username: string;
+      password: string;
+      role?: string;
+    }>;
+    urls?: string[];
+    forms?: Record<string, any>;
+    [key: string]: any;
+  };
+  page_objects?: Record<string, string>;  // Page object classes
+  locators?: Record<string, string>;      // Locator mappings
+  helpers?: string[];             // Helper function suggestions
+}
+
+/**
+ * Recording format type
+ */
+export type RecordingFormat = 'python' | 'json' | 'typescript' | 'unknown';

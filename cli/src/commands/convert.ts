@@ -247,11 +247,130 @@ async function ensureRequiredDirectories(outputDir: string): Promise<void> {
   Logger.info('✓ All required directories verified');
 }
 
+/**
+ * Detect recording format based on content and file extension
+ * ROOT CAUSE FIX (RC4): Proper format detection with helpful error messages
+ */
+function detectRecordingFormat(content: string, filePath: string): 'python' | 'json' | 'typescript' | 'unknown' {
+  const ext = path.extname(filePath).toLowerCase();
+
+  // Check by extension first (most reliable)
+  if (ext === '.py') return 'python';
+  if (ext === '.json') return 'json';
+  if (ext === '.ts' || ext === '.js') return 'typescript';
+
+  // Fallback: detect by content
+  const trimmed = content.trim();
+
+  // JSON detection
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      JSON.parse(trimmed);
+      return 'json';
+    } catch {
+      // Not valid JSON
+    }
+  }
+
+  // Python detection
+  if (
+    content.includes('from playwright') ||
+    content.includes('import playwright') ||
+    content.includes('def run(playwright') ||
+    content.includes('page.get_by_')
+  ) {
+    return 'python';
+  }
+
+  // TypeScript/JavaScript detection
+  if (
+    content.includes("import { ") ||
+    content.includes("from 'playwright") ||
+    content.includes("from '@playwright")
+  ) {
+    return 'typescript';
+  }
+
+  return 'unknown';
+}
+
 async function parseRecording(filePath: string): Promise<any> {
   // Read the recording file
   const content = await FileUtils.readFile(filePath);
 
-  // Try to parse as JSON first (preferred format)
+  // Detect format
+  const format = detectRecordingFormat(content, filePath);
+
+  Logger.info(`Detected format: ${format}`);
+
+  switch (format) {
+    case 'python':
+      return parsePythonRecording(content);
+
+    case 'json':
+      return parseJsonRecording(content);
+
+    case 'typescript':
+      throw new ConversionError(
+        'TypeScript recordings are not yet supported',
+        'FORMAT_DETECTION',
+        'Please use Python recordings instead:\n' +
+        '  playwright codegen --target python https://your-site.com\n\n' +
+        'Or provide a JSON recording.'
+      );
+
+    case 'unknown':
+      throw new ConversionError(
+        'Could not detect recording format',
+        'FORMAT_DETECTION',
+        'Supported formats:\n' +
+        '  - Python scripts (.py) from: playwright codegen --target python\n' +
+        '  - JSON recordings (.json)\n\n' +
+        `File: ${filePath}\n` +
+        `First 200 chars:\n${content.substring(0, 200)}...`
+      );
+
+    default:
+      throw new ConversionError(
+        `Unsupported format: ${format}`,
+        'FORMAT_DETECTION',
+        'Please use Python (.py) or JSON (.json) recordings'
+      );
+  }
+}
+
+/**
+ * Parse Python Playwright recording
+ * ROOT CAUSE FIX (RC1, RC2): Comprehensive Python parser for modern Playwright API
+ */
+function parsePythonRecording(content: string): any {
+  // Import and use the comprehensive Python parser
+  const { parsePythonScript, convertToLegacyFormat } = require('../parsers/python-parser');
+
+  Logger.info('Using comprehensive Python parser for modern Playwright API...');
+
+  const parsed = parsePythonScript(content);
+
+  if (parsed.actions.length === 0) {
+    throw new Error('No actions found in Python recording');
+  }
+
+  if (parsed.parseErrors.length > 0) {
+    Logger.warning(`⚠️  ${parsed.parseErrors.length} lines could not be parsed`);
+  }
+
+  // Return in format expected by downstream code
+  return {
+    actions: parsed.actions,  // Use rich parsed actions
+    metadata: parsed.metadata,
+    parseErrors: parsed.parseErrors
+  };
+}
+
+/**
+ * Parse JSON recording
+ */
+function parseJsonRecording(content: string): any {
   try {
     const json = JSON.parse(content);
 
@@ -288,76 +407,25 @@ async function parseRecording(filePath: string): Promise<any> {
 
     throw new Error("Recording JSON missing 'actions' array");
 
-  } catch (jsonError) {
-    // If not valid JSON, try parsing as Playwright Python code
-    Logger.warning('Not valid JSON, attempting to parse as Playwright code...');
-    return parsePlaywrightCode(content);
+  } catch (error) {
+    throw new ConversionError(
+      'Invalid JSON format',
+      'JSON_PARSE',
+      `Could not parse JSON recording: ${error}\n\n` +
+      'Expected format:\n' +
+      '{\n' +
+      '  "actions": [\n' +
+      '    { "type": "navigate", "url": "..." },\n' +
+      '    { "type": "click", "selector": "..." }\n' +
+      '  ]\n' +
+      '}',
+      error as Error
+    );
   }
 }
 
-function parsePlaywrightCode(content: string): any {
-  const actions: any[] = [];
-  const lines = content.split('\n');
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    // Skip comments and empty lines
-    if (trimmed.startsWith('#') || !trimmed) continue;
-
-    // Parse page.goto()
-    if (trimmed.includes('page.goto(')) {
-      const match = trimmed.match(/page\.goto\(['"](.*?)['"]/);
-      if (match) {
-        actions.push({
-          type: 'navigate',
-          url: match[1]
-        });
-      }
-    }
-
-    // Parse page.click()
-    else if (trimmed.includes('page.click(')) {
-      const match = trimmed.match(/page\.click\(['"](.*?)['"]/);
-      if (match) {
-        actions.push({
-          type: 'click',
-          selector: match[1]
-        });
-      }
-    }
-
-    // Parse page.fill()
-    else if (trimmed.includes('page.fill(')) {
-      const match = trimmed.match(/page\.fill\(['"](.*?)['"],\s*['"](.*?)['"]/);
-      if (match) {
-        actions.push({
-          type: 'fill',
-          selector: match[1],
-          value: match[2]
-        });
-      }
-    }
-
-    // Parse page.select_option()
-    else if (trimmed.includes('page.select_option(')) {
-      const match = trimmed.match(/page\.select_option\(['"](.*?)['"],\s*['"](.*?)['"]/);
-      if (match) {
-        actions.push({
-          type: 'select',
-          selector: match[1],
-          value: match[2]
-        });
-      }
-    }
-  }
-
-  if (actions.length === 0) {
-    throw new Error('No valid Playwright actions found in recording');
-  }
-
-  return { actions };
-}
+// OLD BASIC PARSER - REMOVED
+// Now using comprehensive Python parser from ../parsers/python-parser.ts
 
 async function convertToBDD(
   actions: any[],
@@ -381,17 +449,21 @@ async function convertToBDD(
       Logger.info(`Actions to convert: ${actions.length}`);
     }
 
-    // Use AI to convert
+    // Use AI to convert with STRUCTURED OUTPUT (ROOT CAUSE FIX RC7)
     const aiClient = new AnthropicClient(apiKey);
-    const bddOutput = await aiClient.generateBDDScenario(actions, scenarioName);
 
-    spinner.succeed('Conversion complete');
+    // Use the new structured output method for reliable parsing
+    Logger.info('🎯 Using structured output for reliable BDD generation...');
+    const bddOutput = await aiClient.generateBDDScenarioStructured(actions, scenarioName);
+
+    spinner.succeed('Conversion complete with structured output');
 
     if (verbose) {
       Logger.info(`Generated feature file: ${bddOutput.feature.length} chars`);
       Logger.info(`Generated steps: ${bddOutput.steps.length} chars`);
       Logger.info(`Locators: ${Object.keys(bddOutput.locators).length}`);
       Logger.info(`Test data: ${Object.keys(bddOutput.testData).length}`);
+      Logger.info(`Page objects: ${Object.keys(bddOutput.pageObjects).length}`);
     }
 
     return bddOutput;
@@ -404,8 +476,16 @@ async function convertToBDD(
         Logger.error(`Stack: ${error.stack}`);
       }
     }
-    Logger.warning('AI conversion failed. Using template-based conversion.');
-    return generateSimpleBDD(actions, scenarioName);
+
+    // Try fallback to old method
+    try {
+      Logger.warning('Structured output failed. Trying legacy method...');
+      const aiClient = new AnthropicClient(process.env.ANTHROPIC_API_KEY);
+      return await aiClient.generateBDDScenario(actions, scenarioName);
+    } catch (fallbackError) {
+      Logger.warning('AI conversion failed. Using template-based conversion.');
+      return generateSimpleBDD(actions, scenarioName);
+    }
   }
 }
 
