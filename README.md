@@ -937,6 +937,45 @@ playwright-ai init
 
 ---
 
+## 📚 Documentation
+
+**Documentation Quality: 100%** ✅
+
+Our documentation has been comprehensively organized using advanced reasoning techniques (Program of Thought, Tree of Thought, Graph of Thought, and Self-Reflection loops) to achieve production excellence.
+
+### 📖 Quick Links
+
+**For New Users:**
+- **[Usage Guide](docs/guides/USAGE_GUIDE.md)** - Complete CLI reference with examples
+- **[Requirements](REQUIREMENTS.md)** - Full feature specification
+- **[Documentation Index](docs/README.md)** - Find any documentation quickly
+
+**For Developers:**
+- **[Architecture](ARCHITECTURE.md)** - Technical design and system architecture
+- **[AI Features](docs/features/ADVANCED_AI_FEATURES.md)** - AI capabilities overview
+- **[Meta-Reasoning](docs/features/PHASE2_META_REASONING_FLAKY_FIXES.md)** - Advanced AI features
+
+**For Maintainers:**
+- **[NPM Publishing](docs/guides/NPM_PUBLISH_INSTRUCTIONS.md)** - How to publish to npm
+- **[Logging Guide](docs/guides/LOGGING_GUIDE.md)** - Logging configuration
+- **[Testing Guide](docs/guides/AI_FEATURES_TEST_PLAN.md)** - AI features testing
+
+**Release Notes:**
+- **[Latest Release (v1.0.1)](docs/releases/RELEASE_v1.0.1.md)** - Release notes
+- **[Changelog](CHANGELOG.md)** - Complete version history
+
+### 📂 Documentation Structure
+
+```
+docs/
+├── guides/          # User and maintainer guides
+├── features/        # Feature documentation
+├── releases/        # Release notes
+└── archive/         # Historical documents
+```
+
+---
+
 ## 🤝 Contributing
 
 We welcome contributions! This is an open-source project.

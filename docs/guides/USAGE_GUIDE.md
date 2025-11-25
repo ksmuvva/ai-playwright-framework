@@ -1,18 +1,18 @@
-# Playwright AI Framework - Usage Guide
+# AI Playwright Framework - Complete Usage Guide
 
-**This guide has been moved!**
+**Comprehensive guide for using the AI-powered Playwright test automation framework generator.**
 
-For the complete usage guide, see:
-## 📚 [Complete Usage Guide](../docs/guides/USAGE_GUIDE.md)
+---
 
-The comprehensive guide includes:
-- Installation instructions
-- Quick start guide
-- Complete CLI command reference
-- Real-world workflow examples
-- Configuration options
-- Best practices
-- Troubleshooting guide
+## Table of Contents
+
+1. [Installation](#installation)
+2. [Quick Start](#quick-start)
+3. [CLI Commands](#cli-commands)
+4. [Workflow Examples](#workflow-examples)
+5. [Configuration](#configuration)
+6. [Best Practices](#best-practices)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -24,18 +24,30 @@ The comprehensive guide includes:
 - Python 3.8+
 - npm or yarn
 
-### Install CLI Tool
+### From Source (Current Method)
 
 ```bash
-# Install from NPM (when published)
-npm install -g playwright-ai-framework
+# Clone the repository
+git clone https://github.com/ksmuvva/ai-playwright-framework.git
+cd ai-playwright-framework/cli
 
-# Or install from source
-git clone https://github.com/your-org/playwright-ai-framework
-cd playwright-ai-framework/cli
+# Install dependencies
 npm install
+
+# Build the CLI
 npm run build
+
+# Link globally
 npm link
+
+# Verify installation
+playwright-ai --version
+```
+
+### From npm (When Published)
+
+```bash
+npm install -g playwright-ai-framework
 ```
 
 ---
@@ -50,7 +62,7 @@ playwright-ai init
 
 **Interactive prompts will ask:**
 - Project name
-- Language (Python)
+- Language (Python/TypeScript)
 - Enable BDD? (Yes/No)
 - Optimize for Power Apps? (Yes/No)
 - AI Provider (Anthropic/OpenAI/None)
@@ -96,7 +108,7 @@ behave --tags=@smoke
 
 ---
 
-## 🎯 CLI Commands
+## 🎯 CLI Commands Reference
 
 ### `playwright-ai init`
 
@@ -134,17 +146,19 @@ playwright-ai init --ai-provider none
 ```
 my-automation/
 ├── features/              # BDD feature files
-├── steps/                 # Step definitions
+│   ├── environment.py    # Behave hooks
+│   └── steps/           # Step definitions
 ├── helpers/              # Helper utilities
 │   ├── auth_helper.py
 │   ├── healing_locator.py
 │   ├── wait_manager.py
 │   ├── data_generator.py
 │   └── screenshot_manager.py
-├── fixtures/             # Test data
-├── config/               # Configuration
-├── .env                  # Environment variables
-├── requirements.txt      # Python dependencies
+├── pages/               # Page objects
+├── fixtures/            # Test data
+├── config/             # Configuration
+├── .env                # Environment variables
+├── requirements.txt    # Python dependencies
 └── README.md
 ```
 
@@ -228,7 +242,7 @@ playwright-ai convert recordings/test.py --output-dir ./my-tests
 
 ```
 features/scenario_name.feature          # Gherkin feature file
-steps/scenario_name_steps.py            # Python step definitions (if needed)
+features/steps/scenario_name_steps.py   # Python step definitions
 config/scenario_name_locators.json      # Locator mappings
 fixtures/scenario_name_data.json        # Test data
 ```
@@ -396,6 +410,32 @@ summary = true
 
 ---
 
+## 🎓 Best Practices
+
+### 1. Use Descriptive Scenario Names
+- ✅ `user_login_with_valid_credentials`
+- ❌ `test1`
+
+### 2. Configure AI for Best Results
+- Self-healing reduces maintenance
+- Test data generation improves coverage
+
+### 3. Run Tests Frequently
+- Smart waits improve over time
+- Healing learns from failures
+
+### 4. Commit Generated Files
+- Feature files
+- Locator configs
+- But not credentials or logs
+
+### 5. Review AI-Generated Code
+- AI is helpful but not perfect
+- Verify step definitions
+- Adjust as needed
+
+---
+
 ## 🐛 Troubleshooting
 
 ### Issue: "AI API key not configured"
@@ -499,9 +539,10 @@ playwright install
 ## 📞 Getting Help
 
 ### Documentation
-- Main README: [README.md](../README.md)
-- Requirements: [REQUIREMENTS.md](../REQUIREMENTS.md)
-- Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md)
+- Main README: [README.md](../../README.md)
+- Requirements: [REQUIREMENTS.md](../../REQUIREMENTS.md)
+- Architecture: [ARCHITECTURE.md](../../ARCHITECTURE.md)
+- Feature Guides: [docs/features/](../features/)
 
 ### Community
 - GitHub Issues: Report bugs
@@ -525,32 +566,6 @@ And I pause  # Browser will pause here
 ```bash
 ls reports/screenshots/
 ```
-
----
-
-## 🎓 Best Practices
-
-1. **Use descriptive scenario names**
-   - ✅ `user_login_with_valid_credentials`
-   - ❌ `test1`
-
-2. **Configure AI for best results**
-   - Self-healing reduces maintenance
-   - Test data generation improves coverage
-
-3. **Run tests frequently**
-   - Smart waits improve over time
-   - Healing learns from failures
-
-4. **Commit generated files**
-   - Feature files
-   - Locator configs
-   - But not credentials or logs
-
-5. **Review AI-generated code**
-   - AI is helpful but not perfect
-   - Verify step definitions
-   - Adjust as needed
 
 ---
 
