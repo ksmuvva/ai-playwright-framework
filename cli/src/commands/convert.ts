@@ -5,6 +5,8 @@ import { ConvertOptions, BDDOutput } from '../types';
 import { Logger } from '../utils/logger';
 import { FileUtils } from '../utils/file-utils';
 import { AnthropicClient } from '../ai/anthropic-client';
+import { StepRegistry } from '../utils/step-registry';
+import { PageObjectRegistry } from '../utils/page-object-registry';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -54,6 +56,8 @@ export function createConvertCommand(): Command {
     .argument('<recording-file>', 'Path to recording file')
     .option('-s, --scenario-name <name>', 'Override scenario name')
     .option('-o, --output-dir <dir>', 'Output directory', '.')
+    .option('-f, --scenario-folder <folder>', 'Organize scenario into a folder (e.g., authentication, checkout)')
+    .option('--no-registry', 'Disable step/page registry (create standalone files)')
     .option('-v, --verbose', 'Enable verbose logging for debugging')
     .action(async (recordingFile, options) => {
       await convertRecording(recordingFile, options);
@@ -95,7 +99,7 @@ async function convertRecording(
 
     // Stage 2: Directory Setup
     if (verbose) Logger.info('[Stage 2/6] Creating required directories...');
-    await ensureRequiredDirectories(cmdOptions.outputDir).catch(err => {
+    await ensureRequiredDirectories(cmdOptions.outputDir, cmdOptions.scenarioFolder).catch(err => {
       throw new ConversionError(
         'Failed to create output directories',
         'DIRECTORY_SETUP',
@@ -103,6 +107,34 @@ async function convertRecording(
         err
       );
     });
+
+    // Stage 2.5: Initialize Registries (P1 Feature)
+    let stepRegistry: StepRegistry | null = null;
+    let pageRegistry: PageObjectRegistry | null = null;
+
+    if (cmdOptions.registry !== false) {  // Registry enabled by default
+      if (verbose) Logger.info('[Stage 2.5/6] Initializing framework registries...');
+      try {
+        stepRegistry = new StepRegistry(cmdOptions.outputDir);
+        await stepRegistry.initialize();
+
+        pageRegistry = new PageObjectRegistry(cmdOptions.outputDir);
+        await pageRegistry.initialize();
+
+        if (verbose) {
+          Logger.info('Registry statistics:');
+          const stepStats = stepRegistry.getReuseStats();
+          Logger.info(`  - Existing steps: ${stepStats.totalSteps}`);
+          Logger.info(`  - Existing pages: ${pageRegistry.getAllPages().length}`);
+        }
+      } catch (error) {
+        Logger.warning('Registry initialization failed, continuing without registry...');
+        stepRegistry = null;
+        pageRegistry = null;
+      }
+    } else {
+      Logger.info('Registry disabled - creating standalone files');
+    }
 
     // Stage 3: Parse Recording
     if (verbose) Logger.info('[Stage 3/6] Parsing recording...');
@@ -140,9 +172,16 @@ async function convertRecording(
       );
     });
 
-    // Stage 6: Write Files
+    // Stage 6: Write Files with Registry Integration
     if (verbose) Logger.info('[Stage 6/6] Writing output files...');
-    await writeOutputFiles(bddOutput, scenarioName, cmdOptions.outputDir).catch(err => {
+    await writeOutputFiles(
+      bddOutput,
+      scenarioName,
+      cmdOptions.outputDir,
+      stepRegistry,
+      pageRegistry,
+      cmdOptions.scenarioFolder
+    ).catch(err => {
       throw new ConversionError(
         'Failed to write output files',
         'FILE_WRITE',
@@ -219,12 +258,13 @@ async function validateRecordingFile(filePath: string): Promise<string> {
 
 /**
  * Ensure all required directories exist before writing files
+ * FIX P2-2: Support scenario folders for better organization
  */
-async function ensureRequiredDirectories(outputDir: string): Promise<void> {
+async function ensureRequiredDirectories(outputDir: string, scenarioFolder?: string): Promise<void> {
   const fs = require('fs').promises;
   const requiredDirs = [
     'features',
-    'steps',
+    path.join('features', 'steps'),  // FIX: Behave expects steps inside features/
     'fixtures',
     'recordings',
     'pages',
@@ -233,6 +273,12 @@ async function ensureRequiredDirectories(outputDir: string): Promise<void> {
     'reports',
     path.join('reports', 'screenshots'),
   ];
+
+  // Add scenario folder if specified (P2-2)
+  if (scenarioFolder) {
+    requiredDirs.push(path.join('scenarios', scenarioFolder));
+    Logger.info(`📁 Using scenario folder: ${scenarioFolder}`);
+  }
 
   for (const dir of requiredDirs) {
     const fullPath = path.join(outputDir, dir);
@@ -651,15 +697,45 @@ function generateSimpleBDD(actions: any[], scenarioName: string): BDDOutput {
 async function writeOutputFiles(
   bddOutput: BDDOutput,
   scenarioName: string,
-  outputDir: string
+  outputDir: string,
+  stepRegistry: StepRegistry | null = null,
+  pageRegistry: PageObjectRegistry | null = null,
+  scenarioFolder?: string
 ): Promise<void> {
   const spinner = ora('Writing output files...').start();
 
   try {
+    // Determine feature file location (P2-2: Scenario folder support)
+    let featureFile: string;
+    if (scenarioFolder) {
+      // Use scenarios/{folder}/*.feature structure
+      featureFile = path.join(outputDir, 'scenarios', scenarioFolder, `${scenarioName}.feature`);
+      spinner.text = `Using scenario folder: ${scenarioFolder}`;
+    } else {
+      // Use standard features/*.feature structure
+      featureFile = path.join(outputDir, 'features', `${scenarioName}.feature`);
+    }
+
     // Write feature file
-    const featureFile = path.join(outputDir, 'features', `${scenarioName}.feature`);
     await FileUtils.writeFile(featureFile, bddOutput.feature);
     spinner.text = `Created: ${featureFile}`;
+
+    // FIX P0-2: Ensure environment.py exists in features/ directory
+    const envFile = path.join(outputDir, 'features', 'environment.py');
+    try {
+      await FileUtils.readFile(envFile);
+      // File exists, don't overwrite
+    } catch {
+      // File doesn't exist, copy from template
+      const templatePath = FileUtils.getTemplatePath('python');
+      const envTemplatePath = path.join(templatePath, 'features', 'environment.py');
+      try {
+        await FileUtils.copyFile(envTemplatePath, envFile);
+        spinner.text = `Created: ${envFile}`;
+      } catch (error) {
+        Logger.warning('Could not copy environment.py template. Please create it manually.');
+      }
+    }
 
     // Write locators to config
     if (Object.keys(bddOutput.locators).length > 0) {
@@ -681,19 +757,119 @@ async function writeOutputFiles(
       spinner.text = `Created: ${dataFile}`;
     }
 
-    // Write step definitions if provided
+    // Write step definitions with framework injection (P1 Feature)
     if (bddOutput.steps) {
-      const stepsFile = path.join(outputDir, 'steps', `${scenarioName}_steps.py`);
-      await FileUtils.writeFile(stepsFile, bddOutput.steps);
-      spinner.text = `Created: ${stepsFile}`;
+      const stepsFile = path.join(outputDir, 'features', 'steps', `${scenarioName}_steps.py`);
+
+      // P1: Use registry for step reuse analysis
+      if (stepRegistry) {
+        Logger.info('🔍 Analyzing step reusability...');
+
+        // Parse step patterns from generated steps
+        const stepPatterns = extractStepPatterns(bddOutput.steps);
+
+        if (stepPatterns.length > 0) {
+          const analysis = stepRegistry.analyzeSteps(stepPatterns);
+
+          Logger.info(
+            `📊 Step Analysis:\n` +
+            `  Total steps: ${analysis.totalSteps}\n` +
+            `  Reusable: ${analysis.reusableSteps.length} (${Math.round(analysis.reusableSteps.length / analysis.totalSteps * 100)}%)\n` +
+            `  New: ${analysis.newStepsNeeded.length}`
+          );
+
+          if (analysis.reusableSteps.length > 0) {
+            Logger.info(`♻️  Reusing ${analysis.reusableSteps.length} existing steps:`);
+            analysis.reusableSteps.slice(0, 3).forEach(step => {
+              Logger.info(`    - "${step}"`);
+            });
+            if (analysis.reusableSteps.length > 3) {
+              Logger.info(`    ... and ${analysis.reusableSteps.length - 3} more`);
+            }
+          }
+
+          // Only write new steps (P1-2: Step merging)
+          if (analysis.newStepsNeeded.length > 0) {
+            const newStepsCode = filterNewSteps(bddOutput.steps, analysis.newStepsNeeded);
+            await FileUtils.writeFile(stepsFile, newStepsCode);
+            spinner.text = `Created: ${stepsFile} (${analysis.newStepsNeeded.length} new steps)`;
+          } else {
+            Logger.info('✨ All steps already exist - no new steps needed!');
+          }
+        } else {
+          // No patterns found, write all steps
+          await FileUtils.writeFile(stepsFile, bddOutput.steps);
+          spinner.text = `Created: ${stepsFile}`;
+        }
+      } else {
+        // Registry disabled, write all steps (standalone mode)
+        await FileUtils.writeFile(stepsFile, bddOutput.steps);
+        spinner.text = `Created: ${stepsFile}`;
+      }
+
+      // FIX P0-3: Ensure __init__.py exists in features/steps/
+      const stepsInitFile = path.join(outputDir, 'features', 'steps', '__init__.py');
+      try {
+        await FileUtils.readFile(stepsInitFile);
+        // File exists, don't overwrite
+      } catch {
+        // File doesn't exist, create it
+        await FileUtils.writeFile(stepsInitFile, '# Step definitions package\n');
+        spinner.text = `Created: ${stepsInitFile}`;
+      }
     }
 
-    // Write page objects if provided
+    // Write page objects with framework injection (P2 Feature)
     if (bddOutput.pageObjects && Object.keys(bddOutput.pageObjects).length > 0) {
+      // FIX P0-3: Ensure __init__.py exists in pages/
+      const pagesInitFile = path.join(outputDir, 'pages', '__init__.py');
+      try {
+        await FileUtils.readFile(pagesInitFile);
+        // File exists, don't overwrite
+      } catch {
+        // File doesn't exist, create it
+        await FileUtils.writeFile(pagesInitFile, '# Page objects package\n');
+        spinner.text = `Created: ${pagesInitFile}`;
+      }
+
       for (const [pageName, pageCode] of Object.entries(bddOutput.pageObjects)) {
         const pageFile = path.join(outputDir, 'pages', `${pageName}.py`);
-        await FileUtils.writeFile(pageFile, pageCode);
-        spinner.text = `Created: ${pageFile}`;
+
+        // P2: Use registry for page merging
+        if (pageRegistry && typeof pageCode === 'string') {
+          // Extract class name from file name (e.g., 'login_page' -> 'LoginPage')
+          const className = pageName
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join('');
+
+          if (pageRegistry.pageExists(className)) {
+            Logger.info(`🔄 Page ${className} exists - attempting merge...`);
+
+            const mergeResult = await pageRegistry.mergePage(className, pageCode);
+
+            if (mergeResult.shouldCreate) {
+              // Create new page
+              await FileUtils.writeFile(pageFile, pageCode);
+              spinner.text = `Created: ${pageFile}`;
+            } else if (mergeResult.mergedCode) {
+              // Write merged page
+              await FileUtils.writeFile(pageFile, mergeResult.mergedCode);
+              spinner.text = `Updated: ${pageFile} (merged)`;
+            } else {
+              // No changes needed
+              Logger.info(`  ✓ ${className} unchanged - all elements already exist`);
+            }
+          } else {
+            // New page
+            await FileUtils.writeFile(pageFile, pageCode);
+            spinner.text = `Created: ${pageFile}`;
+          }
+        } else {
+          // Registry disabled or invalid code, write directly
+          await FileUtils.writeFile(pageFile, pageCode);
+          spinner.text = `Created: ${pageFile}`;
+        }
       }
     }
 
@@ -705,17 +881,89 @@ async function writeOutputFiles(
   }
 }
 
+/**
+ * Extract step patterns from generated step code
+ * Helper for step registry analysis
+ */
+function extractStepPatterns(stepsCode: string): string[] {
+  const patterns: string[] = [];
+  const lines = stepsCode.split('\n');
+
+  for (const line of lines) {
+    const match = line.trim().match(/^@(?:given|when|then)\(['"](.+?)['"]\)/);
+    if (match) {
+      patterns.push(match[1]);
+    }
+  }
+
+  return patterns;
+}
+
+/**
+ * Filter steps code to only include new steps
+ * Helper for step merging
+ */
+function filterNewSteps(stepsCode: string, newStepPatterns: string[]): string {
+  const lines = stepsCode.split('\n');
+  const filteredLines: string[] = [];
+  let inNewStep = false;
+  let currentStepIndent = 0;
+
+  // Keep imports and module-level code
+  let i = 0;
+  while (i < lines.length && !lines[i].trim().startsWith('@')) {
+    filteredLines.push(lines[i]);
+    i++;
+  }
+
+  // Process step definitions
+  for (; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Check if this is a decorator for a new step
+    const decoratorMatch = trimmed.match(/^@(?:given|when|then)\(['"](.+?)['"]\)/);
+    if (decoratorMatch) {
+      const pattern = decoratorMatch[1];
+      inNewStep = newStepPatterns.includes(pattern);
+
+      if (inNewStep) {
+        filteredLines.push(line);
+        currentStepIndent = line.search(/\S/);
+      }
+      continue;
+    }
+
+    // If we're in a new step, keep the line
+    if (inNewStep) {
+      const currentIndent = line.search(/\S/);
+
+      // End of function (dedent)
+      if (trimmed && currentIndent > 0 && currentIndent <= currentStepIndent) {
+        inNewStep = false;
+      } else {
+        filteredLines.push(line);
+      }
+    }
+  }
+
+  return filteredLines.join('\n');
+}
+
 function displayGeneratedFiles(scenarioName: string): void {
   Logger.info('Generated files:');
   Logger.list([
     `features/${scenarioName}.feature`,
+    `features/steps/${scenarioName}_steps.py`,  // FIX P0-1: Updated path
+    `features/environment.py (if not exists)`,
     `config/${scenarioName}_locators.json`,
     `fixtures/${scenarioName}_data.json`,
-    `steps/${scenarioName}_steps.py`,
     `pages/*_page.py (page objects if detected)`
   ]);
 
   Logger.newline();
   Logger.info('To run this scenario:');
   Logger.code(`  behave features/${scenarioName}.feature`);
+  Logger.newline();
+  Logger.info('💡 Tip: Make sure to run this from your project root directory');
 }
