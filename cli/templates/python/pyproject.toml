@@ -34,13 +34,17 @@ dependencies = [
     "pydantic>=2.5.3",
     "structlog>=24.1.0",
     "colorama>=0.4.6",
+    "requests>=2.31.0",
+    "pyyaml>=6.0.0",
+    "jinja2>=3.1.0",
 
     # Reporting
     "allure-behave>=2.13.2",
-
-    # Additional utilities
-    "requests>=2.31.0",
 ]
+
+[project.scripts]
+setup-browsers = "scripts.setup:install_browsers"
+verify-setup = "scripts.setup:verify_installation"
 
 [project.optional-dependencies]
 dev = [
@@ -69,3 +73,18 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+
+# ============================================================================
+# IMPORTANT: POST-INSTALLATION STEPS FOR UV USERS
+# ============================================================================
+# UV does NOT automatically install Playwright browsers.
+# After running 'uv sync', you MUST also run:
+#
+#   uv run python -m playwright install chromium
+#
+# On Linux, also install system dependencies:
+#   sudo playwright install-deps chromium
+#
+# For a one-command setup, run:
+#   uv sync && uv run python -m scripts.setup
+# ============================================================================

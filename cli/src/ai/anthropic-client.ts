@@ -267,24 +267,76 @@ export class AnthropicClient implements AIClient {
   }
 
   /**
-   * Safely parse JSON from AI response, handling markdown-wrapped JSON (BUG-001 fix)
+   * Safely parse JSON from AI response with multi-strategy parsing
+   * Handles various response formats: raw JSON, markdown-wrapped, mixed content
    */
   private safeParseJSON(jsonText: string): any {
-    try {
-      let cleanText = jsonText.trim();
+    const strategies = [
+      this.tryParseRawJSON.bind(this),
+      this.tryParseMarkdownJSON.bind(this),
+      this.tryExtractJSONFromText.bind(this),
+    ];
 
-      // Remove markdown code blocks if present
-      if (cleanText.startsWith('```')) {
-        cleanText = cleanText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '');
+    for (const strategy of strategies) {
+      try {
+        const result = strategy(jsonText);
+        if (result !== null && typeof result === 'object') {
+          return result;
+        }
+      } catch {
+        // Try next strategy
+        continue;
       }
-
-      const result = JSON.parse(cleanText);
-      return result;
-    } catch (error) {
-      Logger.error(`Failed to parse AI response: ${error}`);
-      Logger.error(`Raw response: ${jsonText.substring(0, 200)}...`);
-      throw new Error('Invalid AI response format. The AI returned malformed JSON.');
     }
+
+    // All strategies failed
+    Logger.error(`Failed to parse AI response with all strategies`);
+    Logger.error(`Raw response preview: ${jsonText.substring(0, 300)}...`);
+    throw new Error(
+      'Invalid AI response format. Could not parse response as JSON.\n' +
+      'This may indicate an API issue or unexpected AI output format.'
+    );
+  }
+
+  /**
+   * Strategy 1: Try parsing as raw JSON
+   */
+  private tryParseRawJSON(text: string): any {
+    const cleanText = text.trim();
+    return JSON.parse(cleanText);
+  }
+
+  /**
+   * Strategy 2: Try parsing markdown-wrapped JSON
+   */
+  private tryParseMarkdownJSON(text: string): any {
+    let cleanText = text.trim();
+
+    // Remove markdown code blocks if present
+    if (cleanText.startsWith('```')) {
+      cleanText = cleanText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '');
+    }
+
+    return JSON.parse(cleanText);
+  }
+
+  /**
+   * Strategy 3: Try extracting JSON from mixed text content
+   */
+  private tryExtractJSONFromText(text: string): any {
+    // Look for JSON object patterns in the text
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+
+    // Look for JSON array patterns
+    const arrayMatch = text.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      return JSON.parse(arrayMatch[0]);
+    }
+
+    throw new Error('No JSON found in text');
   }
 
   /**
