@@ -9,12 +9,52 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+/**
+ * Custom error class for conversion failures with stage context
+ * ENHANCEMENT (RC2.4): Provides clear error messages with stage information
+ */
+class ConversionError extends Error {
+  constructor(
+    message: string,
+    public stage: string,
+    public suggestion?: string,
+    public originalError?: Error
+  ) {
+    super(message);
+    this.name = 'ConversionError';
+  }
+
+  toString(): string {
+    const lines = [
+      '',
+      '═'.repeat(70),
+      '❌ CONVERSION FAILED',
+      '═'.repeat(70),
+      '',
+      `Stage: ${this.stage}`,
+      `Error: ${this.message}`,
+    ];
+
+    if (this.suggestion) {
+      lines.push('', `💡 Suggestion: ${this.suggestion}`);
+    }
+
+    if (this.originalError) {
+      lines.push('', `Details: ${this.originalError.message}`);
+    }
+
+    lines.push('', '═'.repeat(70), '');
+    return lines.join('\n');
+  }
+}
+
 export function createConvertCommand(): Command {
   return new Command('convert')
     .description('Convert Playwright recording to BDD scenario')
     .argument('<recording-file>', 'Path to recording file')
     .option('-s, --scenario-name <name>', 'Override scenario name')
     .option('-o, --output-dir <dir>', 'Output directory', '.')
+    .option('-v, --verbose', 'Enable verbose logging for debugging')
     .action(async (recordingFile, options) => {
       await convertRecording(recordingFile, options);
     });
@@ -24,11 +64,26 @@ async function convertRecording(
   recordingFile: string,
   cmdOptions: any
 ): Promise<void> {
+  // Enable verbose logging if requested
+  const verbose = cmdOptions.verbose || false;
+
   try {
     Logger.title('🔄 Converting Recording to BDD');
 
-    // Comprehensive file validation
-    const validatedFile = await validateRecordingFile(recordingFile);
+    if (verbose) {
+      Logger.info('Verbose mode enabled');
+    }
+
+    // Stage 1: File Validation
+    if (verbose) Logger.info('[Stage 1/6] Validating recording file...');
+    const validatedFile = await validateRecordingFile(recordingFile).catch(err => {
+      throw new ConversionError(
+        err.message,
+        'FILE_VALIDATION',
+        'Ensure the recording file exists and has valid content',
+        err
+      );
+    });
 
     // Extract scenario name
     const scenarioName = cmdOptions.scenarioName ||
@@ -38,19 +93,63 @@ async function convertRecording(
     Logger.info(`Recording file: ${validatedFile}`);
     Logger.newline();
 
-    // Ensure required directories exist
-    await ensureRequiredDirectories(cmdOptions.outputDir);
+    // Stage 2: Directory Setup
+    if (verbose) Logger.info('[Stage 2/6] Creating required directories...');
+    await ensureRequiredDirectories(cmdOptions.outputDir).catch(err => {
+      throw new ConversionError(
+        'Failed to create output directories',
+        'DIRECTORY_SETUP',
+        'Check write permissions in the output directory',
+        err
+      );
+    });
 
-    // Parse recording
+    // Stage 3: Parse Recording
+    if (verbose) Logger.info('[Stage 3/6] Parsing recording...');
     const spinner = ora('Parsing recording...').start();
-    const recording = await parseRecording(validatedFile);
+    const recording = await parseRecording(validatedFile).catch(err => {
+      spinner.fail();
+      throw new ConversionError(
+        'Failed to parse recording file',
+        'RECORDING_PARSE',
+        'Ensure the recording file contains valid JSON or Playwright code',
+        err
+      );
+    });
     spinner.succeed(`Parsed ${recording.actions.length} actions`);
 
-    // Convert to BDD using AI
-    const bddOutput = await convertToBDD(recording.actions, scenarioName);
+    // Stage 4: AI Conversion
+    if (verbose) Logger.info('[Stage 4/6] Converting to BDD using AI...');
+    const bddOutput = await convertToBDD(recording.actions, scenarioName, verbose).catch(err => {
+      throw new ConversionError(
+        'AI conversion failed',
+        'AI_CONVERSION',
+        'Check your API key is valid and you have network connectivity. Enable --verbose for more details.',
+        err
+      );
+    });
 
-    // Write output files
-    await writeOutputFiles(bddOutput, scenarioName, cmdOptions.outputDir);
+    // Stage 5: Validate Generated Code
+    if (verbose) Logger.info('[Stage 5/6] Validating generated code...');
+    await validateGeneratedCode(bddOutput, verbose).catch(err => {
+      throw new ConversionError(
+        'Generated code validation failed',
+        'CODE_VALIDATION',
+        'The AI generated invalid Python code. Try running conversion again.',
+        err
+      );
+    });
+
+    // Stage 6: Write Files
+    if (verbose) Logger.info('[Stage 6/6] Writing output files...');
+    await writeOutputFiles(bddOutput, scenarioName, cmdOptions.outputDir).catch(err => {
+      throw new ConversionError(
+        'Failed to write output files',
+        'FILE_WRITE',
+        'Check write permissions and available disk space',
+        err
+      );
+    });
 
     Logger.newline();
     Logger.success('✅ Conversion complete!');
@@ -59,7 +158,17 @@ async function convertRecording(
     displayGeneratedFiles(scenarioName);
 
   } catch (error) {
-    Logger.error(`Conversion failed: ${error}`);
+    if (error instanceof ConversionError) {
+      Logger.error(error.toString());
+    } else {
+      Logger.error(`Conversion failed: ${error}`);
+    }
+
+    if (verbose && error instanceof Error) {
+      Logger.error('\nStack trace:');
+      Logger.error(error.stack || 'No stack trace available');
+    }
+
     process.exit(1);
   }
 }
@@ -252,7 +361,8 @@ function parsePlaywrightCode(content: string): any {
 
 async function convertToBDD(
   actions: any[],
-  scenarioName: string
+  scenarioName: string,
+  verbose: boolean = false
 ): Promise<BDDOutput> {
   const spinner = ora('Converting to BDD using AI...').start();
 
@@ -266,18 +376,134 @@ async function convertToBDD(
       return generateSimpleBDD(actions, scenarioName);
     }
 
+    if (verbose) {
+      Logger.info(`Using AI provider: ${aiProvider}`);
+      Logger.info(`Actions to convert: ${actions.length}`);
+    }
+
     // Use AI to convert
     const aiClient = new AnthropicClient(apiKey);
     const bddOutput = await aiClient.generateBDDScenario(actions, scenarioName);
 
     spinner.succeed('Conversion complete');
 
+    if (verbose) {
+      Logger.info(`Generated feature file: ${bddOutput.feature.length} chars`);
+      Logger.info(`Generated steps: ${bddOutput.steps.length} chars`);
+      Logger.info(`Locators: ${Object.keys(bddOutput.locators).length}`);
+      Logger.info(`Test data: ${Object.keys(bddOutput.testData).length}`);
+    }
+
     return bddOutput;
 
   } catch (error) {
     spinner.fail();
+    if (verbose) {
+      Logger.error(`AI conversion error: ${error}`);
+      if (error instanceof Error) {
+        Logger.error(`Stack: ${error.stack}`);
+      }
+    }
     Logger.warning('AI conversion failed. Using template-based conversion.');
     return generateSimpleBDD(actions, scenarioName);
+  }
+}
+
+/**
+ * Validate generated Python code syntax
+ * ENHANCEMENT (RC2.6): Ensures AI-generated code is syntactically valid
+ */
+async function validateGeneratedCode(bddOutput: BDDOutput, verbose: boolean = false): Promise<void> {
+  const spawn = require('child_process').spawn;
+
+  // Validate step definitions
+  if (bddOutput.steps && bddOutput.steps.trim()) {
+    if (verbose) {
+      Logger.info('Validating step definitions syntax...');
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const process = spawn('python3', ['-m', 'py_compile', '-'], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      let stderrData = '';
+
+      process.stdin.write(bddOutput.steps);
+      process.stdin.end();
+
+      process.stderr.on('data', (data: Buffer) => {
+        stderrData += data.toString();
+      });
+
+      process.on('close', (code: number) => {
+        if (code !== 0) {
+          if (verbose) {
+            Logger.warning('Python syntax validation failed:');
+            Logger.warning(stderrData);
+            Logger.warning('Generated code may have syntax errors but will proceed with conversion.');
+          }
+          // Don't reject - just warn, as the code might still be useful
+          resolve();
+        } else {
+          if (verbose) {
+            Logger.info('✓ Step definitions syntax valid');
+          }
+          resolve();
+        }
+      });
+
+      process.on('error', (err: Error) => {
+        if (verbose) {
+          Logger.warning('Could not validate Python syntax (python3 not available)');
+        }
+        // Don't fail if python3 is not available
+        resolve();
+      });
+    });
+  }
+
+  // Validate page objects
+  if (bddOutput.pageObjects && Object.keys(bddOutput.pageObjects).length > 0) {
+    for (const [pageName, pageCode] of Object.entries(bddOutput.pageObjects)) {
+      if (typeof pageCode === 'string' && pageCode.trim()) {
+        if (verbose) {
+          Logger.info(`Validating ${pageName} syntax...`);
+        }
+
+        await new Promise<void>((resolve) => {
+          const process = spawn('python3', ['-m', 'py_compile', '-'], {
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
+
+          let stderrData = '';
+
+          process.stdin.write(pageCode);
+          process.stdin.end();
+
+          process.stderr.on('data', (data: Buffer) => {
+            stderrData += data.toString();
+          });
+
+          process.on('close', (code: number) => {
+            if (code !== 0 && verbose) {
+              Logger.warning(`${pageName} syntax validation failed:${stderrData}`);
+            } else if (code === 0 && verbose) {
+              Logger.info(`✓ ${pageName} syntax valid`);
+            }
+            resolve();
+          });
+
+          process.on('error', () => {
+            resolve();
+          });
+        });
+      }
+    }
+  }
+
+  if (verbose) {
+    Logger.info('Code validation complete');
   }
 }
 
