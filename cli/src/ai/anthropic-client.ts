@@ -35,22 +35,67 @@ import { Logger } from '../utils/logger';
 import { createReasoningEngine, ChainOfThought, TreeOfThought } from './reasoning';
 import { PhoenixTracer } from '../tracing/phoenix-tracer';
 
-// Load environment variables from CLI root
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// FAILURE-016 FIX: Improve .env file discovery
+// Try multiple locations to find .env file
+const envLocations = [
+  path.resolve(process.cwd(), '.env'),                    // Current directory
+  path.resolve(__dirname, '../../.env'),                  // CLI root (compiled)
+  path.resolve(__dirname, '../../../.env'),               // One level up (global install)
+  path.resolve(__dirname, '../../../../.env'),            // Project root (monorepo)
+];
+
+let envLoaded = false;
+for (const envPath of envLocations) {
+  try {
+    const fs = require('fs');
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+      envLoaded = true;
+      // Logger.debug(`Loaded environment from: ${envPath}`);  // Uncomment for debugging
+      break;
+    }
+  } catch {
+    // Continue to next location
+  }
+}
+
+if (!envLoaded) {
+  // No .env file found - this is OK, we'll use environment variables
+  // Logger.warning('No .env file found, using environment variables');  // Uncomment for debugging
+}
 
 /**
- * Simple LRU Cache for AI responses
- * PERFORMANCE: Reduces API calls and costs by caching deterministic responses
+ * LRU Cache for AI responses with proper memory management
+ * FAILURE-010 FIX: Implements cleanup, size limits, and memory tracking
+ *
+ * Features:
+ * - Periodic cleanup of expired entries
+ * - Byte-size tracking and limits
+ * - Proper LRU eviction (not just first entry)
+ * - Memory leak prevention
  */
 class LRUCache<T> {
-  private cache: Map<string, { value: T; timestamp: number }>;
-  private readonly maxSize: number;
+  private cache: Map<string, { value: T; timestamp: number; size: number }>;
+  private readonly maxEntries: number;
+  private readonly maxBytes: number;
   private readonly ttlMs: number;
+  private currentBytes: number = 0;
+  private cleanupIntervalId?: NodeJS.Timeout;
 
-  constructor(maxSize: number = 100, ttlMinutes: number = 60) {
+  constructor(
+    maxEntries: number = 100,
+    ttlMinutes: number = 60,
+    maxBytes: number = 50 * 1024 * 1024 // 50MB default
+  ) {
     this.cache = new Map();
-    this.maxSize = maxSize;
+    this.maxEntries = maxEntries;
+    this.maxBytes = maxBytes;
     this.ttlMs = ttlMinutes * 60 * 1000;
+
+    // Periodic cleanup every 5 minutes
+    this.cleanupIntervalId = setInterval(() => {
+      this.cleanup();
+    }, 5 * 60 * 1000);
   }
 
   get(key: string): T | undefined {
@@ -60,6 +105,7 @@ class LRUCache<T> {
     // Check if expired
     if (Date.now() - entry.timestamp > this.ttlMs) {
       this.cache.delete(key);
+      this.currentBytes -= entry.size;
       return undefined;
     }
 
@@ -70,40 +116,133 @@ class LRUCache<T> {
   }
 
   set(key: string, value: T): void {
-    // Remove oldest if at capacity
-    if (this.cache.size >= this.maxSize) {
-      const firstKey = this.cache.keys().next().value as string;
-      if (firstKey) {
-        this.cache.delete(firstKey);
+    // Estimate size of value
+    const size = this.estimateSize(value);
+
+    // Remove expired entries first
+    this.cleanup();
+
+    // Evict entries if needed (until we have space)
+    while (
+      (this.cache.size >= this.maxEntries || this.currentBytes + size > this.maxBytes) &&
+      this.cache.size > 0
+    ) {
+      this.evictOldest();
+    }
+
+    // Add new entry
+    this.cache.set(key, { value, timestamp: Date.now(), size });
+    this.currentBytes += size;
+  }
+
+  /**
+   * Clean up expired entries
+   */
+  private cleanup(): void {
+    const now = Date.now();
+    const toDelete: string[] = [];
+
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > this.ttlMs) {
+        toDelete.push(key);
       }
     }
 
-    this.cache.set(key, { value, timestamp: Date.now() });
+    toDelete.forEach(key => {
+      const entry = this.cache.get(key)!;
+      this.currentBytes -= entry.size;
+      this.cache.delete(key);
+    });
+
+    if (toDelete.length > 0) {
+      // Logger.debug(`Cleaned up ${toDelete.length} expired cache entries`);
+    }
+  }
+
+  /**
+   * Evict oldest entry
+   */
+  private evictOldest(): void {
+    const firstKey = this.cache.keys().next().value as string;
+    if (firstKey) {
+      const entry = this.cache.get(firstKey)!;
+      this.currentBytes -= entry.size;
+      this.cache.delete(firstKey);
+      // Logger.debug(`Evicted cache entry: ${firstKey.substring(0, 50)}... (${entry.size} bytes)`);
+    }
+  }
+
+  /**
+   * Estimate size of value in bytes
+   */
+  private estimateSize(value: any): number {
+    try {
+      return JSON.stringify(value).length;
+    } catch {
+      return 1000; // Default estimate if can't serialize
+    }
   }
 
   clear(): void {
     this.cache.clear();
+    this.currentBytes = 0;
   }
 
   size(): number {
     return this.cache.size;
   }
+
+  /**
+   * Get memory usage statistics
+   */
+  getStats(): { entries: number; bytes: number; maxEntries: number; maxBytes: number } {
+    return {
+      entries: this.cache.size,
+      bytes: this.currentBytes,
+      maxEntries: this.maxEntries,
+      maxBytes: this.maxBytes,
+    };
+  }
+
+  /**
+   * Destroy cache and stop cleanup interval
+   */
+  destroy(): void {
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+    }
+    this.clear();
+  }
 }
 
 /**
  * Rate Limiter using Token Bucket algorithm
- * COST CONTROL: Prevents API throttling and unexpected billing
+ * FAILURE-005 FIX: Smart rate limiting with 429 handling and tier detection
+ *
+ * Features:
+ * - Supports Anthropic's actual tier limits (5/50/100 req/min)
+ * - Handles 429 errors with exponential backoff
+ * - Provides user feedback during rate limiting
  */
 class RateLimiter {
   private tokens: number;
   private readonly maxTokens: number;
   private readonly refillRate: number; // tokens per second
   private lastRefill: number;
+  private tier: 'free' | 'pro' | 'enterprise';
 
-  constructor(maxRequestsPerMinute: number = 50) {
-    this.maxTokens = maxRequestsPerMinute;
-    this.tokens = maxRequestsPerMinute;
-    this.refillRate = maxRequestsPerMinute / 60; // Convert to per second
+  // Anthropic's actual limits (as of 2025-01)
+  private static TIER_LIMITS = {
+    free: 5,        // 5 requests per minute
+    pro: 50,        // 50 requests per minute
+    enterprise: 100  // 100 requests per minute
+  };
+
+  constructor(tier: 'free' | 'pro' | 'enterprise' = 'free', customLimit?: number) {
+    this.tier = tier;
+    this.maxTokens = customLimit || RateLimiter.TIER_LIMITS[tier];
+    this.tokens = this.maxTokens;
+    this.refillRate = this.maxTokens / 60; // Convert to per second
     this.lastRefill = Date.now();
   }
 
@@ -117,11 +256,33 @@ class RateLimiter {
 
     // Calculate wait time until next token available
     const waitMs = Math.ceil((1 - this.tokens) / this.refillRate * 1000);
-    Logger.info(`Rate limit reached. Waiting ${waitMs}ms before next API call...`);
+    const waitSeconds = Math.ceil(waitMs / 1000);
+
+    Logger.warning(`⏱️  Rate limit: waiting ${waitSeconds}s before next request...`);
+    Logger.info(`   Tokens available: ${Math.floor(this.tokens)}/${this.maxTokens}`);
+    Logger.info(`   Tier: ${this.tier} (${this.maxTokens} req/min)`);
 
     await new Promise(resolve => setTimeout(resolve, waitMs));
     this.refillTokens();
     this.tokens -= 1;
+  }
+
+  /**
+   * Handle 429 errors with exponential backoff
+   */
+  async handle429Error(attempt: number = 0): Promise<void> {
+    const baseDelay = 2000; // 2 seconds
+    const maxDelay = 60000; // 60 seconds
+    const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+
+    Logger.warning(`⏱️  API rate limit hit (429). Waiting ${delay/1000}s before retry...`);
+    Logger.info(`   Attempt: ${attempt + 1}/5`);
+    Logger.info(`   Consider upgrading to a higher tier for more capacity`);
+
+    await new Promise(resolve => setTimeout(resolve, delay));
+
+    // Reset tokens to be conservative
+    this.tokens = Math.min(this.tokens, 1);
   }
 
   private refillTokens(): void {
@@ -181,11 +342,12 @@ export class AnthropicClient implements AIClient {
     this.chainOfThought = reasoningEngine.chainOfThought;
     this.treeOfThought = reasoningEngine.treeOfThought;
 
-    // Initialize response cache (100 entries, 60 minute TTL)
-    this.responseCache = new LRUCache(100, 60);
+    // Initialize response cache (100 entries, 60 minute TTL, 50MB max)
+    this.responseCache = new LRUCache(100, 60, 50 * 1024 * 1024);
 
-    // Initialize rate limiter
-    this.rateLimiter = new RateLimiter(this.RATE_LIMIT_RPM);
+    // FAILURE-005 FIX: Initialize rate limiter with tier detection
+    const tier = (process.env.ANTHROPIC_TIER as 'free' | 'pro' | 'enterprise') || 'free';
+    this.rateLimiter = new RateLimiter(tier, this.RATE_LIMIT_RPM !== 50 ? this.RATE_LIMIT_RPM : undefined);
 
     // Initialize Phoenix tracing if enabled
     if (process.env.ENABLE_PHOENIX_TRACING !== 'false') {
@@ -255,14 +417,20 @@ export class AnthropicClient implements AIClient {
       }
     }
 
-    // Validate that it looks like a real key (has enough entropy)
-    // Real Anthropic keys have high entropy and don't contain common words
-    const suspiciousPatterns = ['test', 'demo', 'sample', 'fake', 'invalid'];
+    // FAILURE-002 FIX: Be more specific about suspicious patterns
+    // Note: Anthropic uses "sk-ant-test-" for test environments, so "test" alone is NOT suspicious
+    const suspiciousPatterns = ['demo', 'sample', 'fake', 'invalid', 'example'];
     for (const pattern of suspiciousPatterns) {
       if (lowerKey.includes(pattern)) {
         Logger.warning(`⚠️  API key contains suspicious pattern: "${pattern}"`);
         Logger.warning('If API calls fail, verify you are using a valid API key from https://console.anthropic.com/');
       }
+    }
+
+    // Check for "test" only in non-Anthropic contexts (not "sk-ant-test-")
+    if (lowerKey.includes('test') && !lowerKey.startsWith('sk-ant-test-')) {
+      Logger.warning(`⚠️  API key contains "test" pattern (but not Anthropic test key)`);
+      Logger.warning('If API calls fail, verify you are using a valid API key');
     }
   }
 
@@ -340,7 +508,8 @@ export class AnthropicClient implements AIClient {
   }
 
   /**
-   * Retry a function with exponential backoff (BUG-006 fix)
+   * Retry a function with exponential backoff
+   * FAILURE-007-008 FIX: Enhanced error handling for network and API errors
    */
   private async retryWithBackoff<T>(
     fn: () => Promise<T>,
@@ -355,11 +524,36 @@ export class AnthropicClient implements AIClient {
       } catch (error: any) {
         lastError = error;
 
-        // Don't retry on validation errors or client errors
+        // FAILURE-005 FIX: Handle 429 specifically with smart backoff
+        if (error.status === 429) {
+          await this.rateLimiter.handle429Error(attempt);
+          continue; // Retry immediately after backoff
+        }
+
+        // FAILURE-007 FIX: Handle network errors with retry
+        if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+          if (attempt < maxRetries - 1) {
+            const delay = this.BASE_RETRY_DELAY_MS * Math.pow(2, attempt);
+            Logger.warning(
+              `Network error: ${error.code}. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`
+            );
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            throw new Error(
+              `Network connection failed after ${maxRetries} attempts.\n` +
+              `Please check your internet connection and try again.\n` +
+              `Error: ${error.message}`
+            );
+          }
+        }
+
+        // Don't retry on other 4xx client errors (except 429)
         if (error.status && error.status >= 400 && error.status < 500) {
           throw error;
         }
 
+        // Retry on 5xx server errors
         if (attempt < maxRetries - 1) {
           const delay = this.BASE_RETRY_DELAY_MS * Math.pow(2, attempt);
           Logger.warn(`${context} failed (attempt ${attempt + 1}/${maxRetries}). Retrying in ${delay}ms...`);
@@ -517,17 +711,20 @@ export class AnthropicClient implements AIClient {
 
   /**
    * Generate cache key from operation name and prompt
-   * Uses SHA-256 hash for security and performance
-   * PERFORMANCE: ~60% faster than simple hash for large prompts
-   * SECURITY: Cryptographically strong, collision-resistant
+   * FAILURE-009 FIX: Use full SHA-256 hash for collision resistance
+   * SECURITY: Full 256-bit hash eliminates practical collision risk
+   * Previous: 16 chars = 2^64 collision space (risky for high-volume)
+   * Current:  64 chars = 2^256 collision space (cryptographically secure)
    */
   private generateCacheKey(operationName: string, prompt: string): string {
     const hash = crypto
       .createHash('sha256')
       .update(`${operationName}:${prompt}`)
-      .digest('hex')
-      .substring(0, 16); // First 16 chars provide sufficient uniqueness
-    return `${operationName}_${hash}`;
+      .digest('hex'); // Full 64-character hash (256 bits)
+
+    // Optional: Include session ID to prevent cross-session reuse if needed
+    const sessionId = process.env.CACHE_SESSION_ID || '';
+    return sessionId ? `${operationName}_${hash}_${sessionId}` : `${operationName}_${hash}`;
   }
 
   /**
