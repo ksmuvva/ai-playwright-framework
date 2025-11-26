@@ -34,6 +34,7 @@ import {
 import { Logger } from '../utils/logger';
 import { createReasoningEngine, ChainOfThought, TreeOfThought } from './reasoning';
 import { PhoenixTracer } from '../tracing/phoenix-tracer';
+import { SmartCachingStrategy } from './smart-caching-strategy';
 
 // FAILURE-016 FIX: Improve .env file discovery
 // Try multiple locations to find .env file
@@ -308,6 +309,7 @@ export class AnthropicClient implements AIClient {
   private tracer = trace.getTracer('ai-playwright-framework', '2.0.0');
   private responseCache: LRUCache<any>;
   private rateLimiter: RateLimiter;
+  private smartCachingStrategy: SmartCachingStrategy;
 
   // Configuration constants (BUG-005, BUG-006 fixes)
   private readonly DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
@@ -316,8 +318,9 @@ export class AnthropicClient implements AIClient {
   private readonly ENABLE_CACHING = process.env.ENABLE_AI_CACHE !== 'false'; // Default: enabled
   private readonly RATE_LIMIT_RPM = parseInt(process.env.AI_RATE_LIMIT_RPM || '50', 10); // Requests per minute
 
-  // NEW: Prompt caching configuration (90% cost savings!)
+  // SMART PROMPT CACHING (FAILURE-011): Only cache when cost-effective
   private readonly ENABLE_PROMPT_CACHING = process.env.ENABLE_PROMPT_CACHING !== 'false'; // Default: enabled
+  private readonly USE_SMART_CACHING = process.env.DISABLE_SMART_CACHING !== 'true'; // Default: enabled
 
   // NEW: Streaming configuration
   private readonly ENABLE_STREAMING = process.env.ENABLE_STREAMING === 'true'; // Default: disabled for compatibility
@@ -349,6 +352,9 @@ export class AnthropicClient implements AIClient {
     const tier = (process.env.ANTHROPIC_TIER as 'free' | 'pro' | 'enterprise') || 'free';
     this.rateLimiter = new RateLimiter(tier, this.RATE_LIMIT_RPM !== 50 ? this.RATE_LIMIT_RPM : undefined);
 
+    // FAILURE-011 FIX: Initialize smart caching strategy
+    this.smartCachingStrategy = new SmartCachingStrategy();
+
     // Initialize Phoenix tracing if enabled
     if (process.env.ENABLE_PHOENIX_TRACING !== 'false') {
       try {
@@ -363,7 +369,11 @@ export class AnthropicClient implements AIClient {
       Logger.info('AI response caching enabled (100 entries, 60min TTL)');
     }
     if (this.ENABLE_PROMPT_CACHING) {
-      Logger.info('✨ Prompt caching enabled (90% cost reduction on repeated prompts)');
+      if (this.USE_SMART_CACHING) {
+        Logger.info('✨ Smart prompt caching enabled (optimizes costs by caching only repeated prompts)');
+      } else {
+        Logger.info('✨ Prompt caching enabled (90% cost reduction on repeated prompts)');
+      }
     }
     if (this.ENABLE_STREAMING) {
       Logger.info('⚡ Streaming responses enabled (real-time feedback)');
@@ -1204,6 +1214,10 @@ Analyze patterns and suggest optimizations.`;
     // Wait for rate limiter
     await this.rateLimiter.waitForToken();
 
+    // FAILURE-011 FIX: Smart caching - only cache if cost-effective
+    const shouldCache = this.ENABLE_PROMPT_CACHING &&
+      (!this.USE_SMART_CACHING || this.smartCachingStrategy.shouldUseCache(systemPrompt));
+
     const response = await this.tracedLLMCall(
       `anthropic.${operationName}.cached`,
       `${systemPrompt}\n\n${userPrompt}`,
@@ -1211,12 +1225,12 @@ Analyze patterns and suggest optimizations.`;
         () => this.client.messages.create({
           model: this.model,
           max_tokens: maxTokens,
-          // PROMPT CACHING: Mark system prompt as cacheable
-          system: this.ENABLE_PROMPT_CACHING ? [
+          // SMART PROMPT CACHING: Only cache when cost-effective
+          system: shouldCache ? [
             {
               type: 'text',
               text: systemPrompt,
-              cache_control: { type: 'ephemeral' }  // ✨ THIS ENABLES CACHING!
+              cache_control: { type: 'ephemeral' }  // ✨ CACHING ENABLED (smart)
             }
           ] as any : systemPrompt,  // Cast to any for cache_control support
           messages: [
