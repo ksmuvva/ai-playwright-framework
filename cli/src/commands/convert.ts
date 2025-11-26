@@ -481,13 +481,40 @@ async function convertToBDD(
   const spinner = ora('Converting to BDD using AI...').start();
 
   try {
-    // Check if AI is configured
+    // FAILURE-003 FIX: Better error handling for missing API keys
     const aiProvider = process.env.AI_PROVIDER || 'anthropic';
     const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
-      spinner.warn('AI not configured. Using template-based conversion.');
-      return generateSimpleBDD(actions, scenarioName);
+      spinner.fail('AI API key not configured');
+      Logger.newline();
+      Logger.error('❌ AI API KEY NOT CONFIGURED');
+      Logger.newline();
+      Logger.error('The AI-powered BDD conversion requires an API key.');
+      Logger.newline();
+      Logger.info('How to fix:');
+      Logger.info('1. Get an API key from: https://console.anthropic.com/');
+      Logger.info('2. Set it in your .env file:');
+      Logger.code('   ANTHROPIC_API_KEY=sk-ant-api03-your-actual-key');
+      Logger.info('3. Or set as environment variable:');
+      Logger.code('   export ANTHROPIC_API_KEY=sk-ant-api03-your-actual-key');
+      Logger.newline();
+      Logger.info('To use template-based conversion instead (limited functionality):');
+      Logger.code('   # Set environment variable to skip AI');
+      Logger.code('   export SKIP_AI=true');
+      Logger.newline();
+
+      // Check if user wants to skip AI
+      if (process.env.SKIP_AI === 'true') {
+        Logger.warning('Using template-based conversion (limited functionality)...');
+        return generateSimpleBDD(actions, scenarioName);
+      }
+
+      throw new ConversionError(
+        'API key required for AI conversion',
+        'CONFIGURATION',
+        'Set ANTHROPIC_API_KEY environment variable or use SKIP_AI=true for template-based conversion'
+      );
     }
 
     if (verbose) {

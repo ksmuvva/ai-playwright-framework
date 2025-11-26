@@ -65,7 +65,7 @@ export class PhoenixTracer {
       this.sdk.start();
       this.isInitialized = true;
 
-      Logger.success(`Phoenix tracing initialized successfully`);
+      Logger.success(`✓ Phoenix tracing initialized successfully`);
       Logger.info(`  Service: ${name} v${version}`);
       Logger.info(`  Endpoint: ${endpoint}`);
       Logger.newline();
@@ -76,10 +76,20 @@ export class PhoenixTracer {
       Logger.info(`Then view traces at: ${endpoint.replace('/v1/traces', '')}`);
       Logger.newline();
       Logger.info(`Or disable tracing: ENABLE_PHOENIX_TRACING=false`);
-    } catch (error) {
-      Logger.error(`Failed to initialize Phoenix tracing: ${error}`);
-      Logger.warning(`Phoenix tracing is optional. To disable: ENABLE_PHOENIX_TRACING=false`);
-      throw error;
+    } catch (error: any) {
+      // FAILURE-012 FIX: Graceful fallback when Phoenix unavailable
+      Logger.warning('⚠️  Phoenix tracing failed to initialize (server may not be running)');
+      Logger.warning(`   Error: ${error.message || error}`);
+      Logger.info('   Continuing without tracing...');
+      Logger.info('   To start Phoenix: python -m phoenix.server.main serve');
+      Logger.info('   To disable this warning: ENABLE_PHOENIX_TRACING=false');
+      Logger.newline();
+
+      // Mark as initialized to prevent retry loops
+      this.isInitialized = true;
+      this.sdk = null;
+
+      // Don't throw - allow the application to continue without tracing
     }
   }
 

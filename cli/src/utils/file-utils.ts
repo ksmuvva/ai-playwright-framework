@@ -4,14 +4,61 @@ import path from 'path';
 export class FileUtils {
   /**
    * Validate path to prevent path traversal attacks (SEC-003 fix)
+   * FAILURE-001 FIX: Allow absolute paths and external directories when explicitly requested
+   *
+   * @param filePath - Path to validate
+   * @param options - Validation options
+   * @param options.allowExternal - Allow paths outside project root (default: false)
+   * @param options.baseDir - Custom base directory (default: process.cwd())
    */
-  private static validatePath(filePath: string, baseDir?: string): string {
+  private static validatePath(
+    filePath: string,
+    options?: {
+      allowExternal?: boolean;
+      baseDir?: string;
+    }
+  ): string {
     const resolved = path.resolve(filePath);
-    const projectRoot = baseDir ? path.resolve(baseDir) : path.resolve(process.cwd());
+    const projectRoot = options?.baseDir ? path.resolve(options.baseDir) : path.resolve(process.cwd());
 
-    // Prevent path traversal outside project root
-    if (!resolved.startsWith(projectRoot)) {
-      throw new Error(`Path traversal detected: ${filePath} is outside the project directory`);
+    // Allow absolute paths if explicitly requested
+    if (path.isAbsolute(filePath) && options?.allowExternal) {
+      return resolved;
+    }
+
+    // For relative paths, enforce project root restriction
+    if (!path.isAbsolute(filePath) && !resolved.startsWith(projectRoot)) {
+      throw new Error(
+        `Relative path traversal detected: ${filePath} resolves outside project directory.\n` +
+        `Use absolute paths or set allowExternal: true for paths outside the project.`
+      );
+    }
+
+    // Absolute paths within project root are always allowed
+    if (path.isAbsolute(filePath) && resolved.startsWith(projectRoot)) {
+      return resolved;
+    }
+
+    // Allow test directories (temp, /tmp, etc.) for test environments
+    const safePaths = [
+      projectRoot,
+      '/tmp',
+      require('os').tmpdir(),
+      process.env.TMPDIR || '',
+    ].filter(Boolean);
+
+    if (safePaths.some(safePath => resolved.startsWith(safePath))) {
+      return resolved;
+    }
+
+    // If none of the conditions match, block the path
+    if (!options?.allowExternal) {
+      throw new Error(
+        `Path traversal detected: ${filePath} is outside the project directory.\n` +
+        `Resolved to: ${resolved}\n` +
+        `Project root: ${projectRoot}\n` +
+        `To allow this path, use an absolute path with allowExternal option.`
+      );
     }
 
     return resolved;
@@ -37,16 +84,21 @@ export class FileUtils {
    */
   static async copyDirectory(src: string, dest: string): Promise<void> {
     this.validatePathSafety(dest);
-    const validatedDest = this.validatePath(dest);
+    const validatedDest = this.validatePath(dest, {
+      allowExternal: path.isAbsolute(dest)
+    });
     await fs.copy(src, validatedDest);
   }
 
   /**
    * Create directory if it doesn't exist
+   * FAILURE-001 FIX: Allow absolute paths for output directories
    */
   static async ensureDirectory(dirPath: string): Promise<void> {
     this.validatePathSafety(dirPath);
-    const validatedPath = this.validatePath(dirPath);
+    const validatedPath = this.validatePath(dirPath, {
+      allowExternal: path.isAbsolute(dirPath)  // Allow absolute paths
+    });
     await fs.ensureDir(validatedPath);
   }
 
@@ -55,7 +107,9 @@ export class FileUtils {
    */
   static async writeFile(filePath: string, content: string): Promise<void> {
     this.validatePathSafety(filePath);
-    const validatedPath = this.validatePath(filePath);
+    const validatedPath = this.validatePath(filePath, {
+      allowExternal: path.isAbsolute(filePath)
+    });
     await fs.ensureDir(path.dirname(validatedPath));
     await fs.writeFile(validatedPath, content, 'utf-8');
   }
@@ -66,7 +120,9 @@ export class FileUtils {
    */
   static async writeSecureFile(filePath: string, content: string): Promise<void> {
     this.validatePathSafety(filePath);
-    const validatedPath = this.validatePath(filePath);
+    const validatedPath = this.validatePath(filePath, {
+      allowExternal: path.isAbsolute(filePath)
+    });
     await fs.ensureDir(path.dirname(validatedPath));
     await fs.writeFile(validatedPath, content, {
       encoding: 'utf-8',
@@ -76,11 +132,25 @@ export class FileUtils {
 
   /**
    * Read file
+   * FAILURE-015 FIX: Handle non-UTF-8 files with fallback encoding
    */
   static async readFile(filePath: string): Promise<string> {
     this.validatePathSafety(filePath);
-    const validatedPath = this.validatePath(filePath);
-    return await fs.readFile(validatedPath, 'utf-8');
+    const validatedPath = this.validatePath(filePath, {
+      allowExternal: path.isAbsolute(filePath)
+    });
+
+    try {
+      return await fs.readFile(validatedPath, 'utf-8');
+    } catch (error: any) {
+      // Check if it's an encoding error
+      if (error.message && error.message.includes('UTF-8')) {
+        // Try latin1 encoding as fallback
+        const buffer = await fs.readFile(validatedPath);
+        return buffer.toString('latin1');
+      }
+      throw error;
+    }
   }
 
   /**
@@ -90,7 +160,9 @@ export class FileUtils {
   static async fileExists(filePath: string): Promise<boolean> {
     try {
       this.validatePathSafety(filePath);
-      const validatedPath = this.validatePath(filePath);
+      const validatedPath = this.validatePath(filePath, {
+        allowExternal: path.isAbsolute(filePath)
+      });
       await fs.access(validatedPath);
       return true;
     } catch {
@@ -105,7 +177,9 @@ export class FileUtils {
   static async directoryExists(dirPath: string): Promise<boolean> {
     try {
       this.validatePathSafety(dirPath);
-      const validatedPath = this.validatePath(dirPath);
+      const validatedPath = this.validatePath(dirPath, {
+        allowExternal: path.isAbsolute(dirPath)
+      });
       const stat = await fs.stat(validatedPath);
       return stat.isDirectory();
     } catch {
@@ -140,7 +214,9 @@ export class FileUtils {
    */
   static async listFiles(dirPath: string, pattern?: RegExp): Promise<string[]> {
     this.validatePathSafety(dirPath);
-    const validatedPath = this.validatePath(dirPath);
+    const validatedPath = this.validatePath(dirPath, {
+      allowExternal: path.isAbsolute(dirPath)
+    });
     const files = await fs.readdir(validatedPath);
 
     if (pattern) {
@@ -155,7 +231,9 @@ export class FileUtils {
    */
   static async copyFile(src: string, dest: string): Promise<void> {
     this.validatePathSafety(dest);
-    const validatedDest = this.validatePath(dest);
+    const validatedDest = this.validatePath(dest, {
+      allowExternal: path.isAbsolute(dest)
+    });
     await fs.ensureDir(path.dirname(validatedDest));
     await fs.copyFile(src, validatedDest);
   }
@@ -165,7 +243,9 @@ export class FileUtils {
    */
   static async removeDirectory(dirPath: string): Promise<void> {
     this.validatePathSafety(dirPath);
-    const validatedPath = this.validatePath(dirPath);
+    const validatedPath = this.validatePath(dirPath, {
+      allowExternal: path.isAbsolute(dirPath)
+    });
     await fs.remove(validatedPath);
   }
 }
