@@ -2,6 +2,13 @@
 
 AI-powered command-line tool that generates complete test automation frameworks for Playwright with self-healing, smart waits, and AI-powered features.
 
+## 📚 Documentation
+
+For complete documentation, see:
+- **[Usage Guide](../docs/guides/USAGE_GUIDE.md)** - Complete CLI reference and examples
+- **[Main README](../README.md)** - Project overview
+- **[Architecture](../ARCHITECTURE.md)** - Technical design
+
 ## 🚀 Quick Start
 
 ```bash
