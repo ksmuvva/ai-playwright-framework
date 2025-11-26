@@ -565,9 +565,11 @@ async function convertToBDD(
 /**
  * Validate generated Python code syntax
  * ENHANCEMENT (RC2.6): Ensures AI-generated code is syntactically valid
+ * STRICT VALIDATION (FAILURE-006): Multiple validation strategies, fails on errors
  */
 async function validateGeneratedCode(bddOutput: BDDOutput, verbose: boolean = false): Promise<void> {
   const spawn = require('child_process').spawn;
+  const validationErrors: string[] = [];
 
   // Validate step definitions
   if (bddOutput.steps && bddOutput.steps.trim()) {
@@ -575,89 +577,166 @@ async function validateGeneratedCode(bddOutput: BDDOutput, verbose: boolean = fa
       Logger.info('Validating step definitions syntax...');
     }
 
-    await new Promise<void>((resolve, reject) => {
-      const process = spawn('python3', ['-m', 'py_compile', '-'], {
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
+    // Strategy 1: Python compilation check (if python3 available)
+    const pythonAvailable = await new Promise<boolean>((resolve) => {
+      const testProcess = spawn('python3', ['--version'], { stdio: 'ignore' });
+      testProcess.on('close', (code: number) => resolve(code === 0));
+      testProcess.on('error', () => resolve(false));
+    });
 
-      let stderrData = '';
+    if (pythonAvailable) {
+      await new Promise<void>((resolve) => {
+        const process = spawn('python3', ['-m', 'py_compile', '-'], {
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
 
-      process.stdin.write(bddOutput.steps);
-      process.stdin.end();
+        let stderrData = '';
 
-      process.stderr.on('data', (data: Buffer) => {
-        stderrData += data.toString();
-      });
+        process.stdin.write(bddOutput.steps);
+        process.stdin.end();
 
-      process.on('close', (code: number) => {
-        if (code !== 0) {
-          if (verbose) {
-            Logger.warning('Python syntax validation failed:');
-            Logger.warning(stderrData);
-            Logger.warning('Generated code may have syntax errors but will proceed with conversion.');
-          }
-          // Don't reject - just warn, as the code might still be useful
-          resolve();
-        } else {
-          if (verbose) {
+        process.stderr.on('data', (data: Buffer) => {
+          stderrData += data.toString();
+        });
+
+        process.on('close', (code: number) => {
+          if (code !== 0) {
+            validationErrors.push(`Python compilation failed: ${stderrData}`);
+          } else if (verbose) {
             Logger.info('✓ Step definitions syntax valid');
           }
           resolve();
-        }
-      });
+        });
 
-      process.on('error', (err: Error) => {
-        if (verbose) {
-          Logger.warning('Could not validate Python syntax (python3 not available)');
-        }
-        // Don't fail if python3 is not available
-        resolve();
+        process.on('error', () => resolve());
       });
-    });
+    } else if (verbose) {
+      Logger.warning('Python3 not available for syntax validation, using regex validation only');
+    }
+
+    // Strategy 2: Basic regex patterns for common syntax errors
+    const regexErrors = validateWithRegex(bddOutput.steps);
+    if (regexErrors.length > 0) {
+      validationErrors.push(...regexErrors);
+    }
   }
 
-  // Validate page objects
+  // Validate page objects (if python3 is available)
   if (bddOutput.pageObjects && Object.keys(bddOutput.pageObjects).length > 0) {
-    for (const [pageName, pageCode] of Object.entries(bddOutput.pageObjects)) {
-      if (typeof pageCode === 'string' && pageCode.trim()) {
-        if (verbose) {
-          Logger.info(`Validating ${pageName} syntax...`);
+    const pythonAvailable = await new Promise<boolean>((resolve) => {
+      const testProcess = spawn('python3', ['--version'], { stdio: 'ignore' });
+      testProcess.on('close', (code: number) => resolve(code === 0));
+      testProcess.on('error', () => resolve(false));
+    });
+
+    if (pythonAvailable) {
+      for (const [pageName, pageCode] of Object.entries(bddOutput.pageObjects)) {
+        if (typeof pageCode === 'string' && pageCode.trim()) {
+          if (verbose) {
+            Logger.info(`Validating ${pageName} syntax...`);
+          }
+
+          await new Promise<void>((resolve) => {
+            const process = spawn('python3', ['-m', 'py_compile', '-'], {
+              stdio: ['pipe', 'pipe', 'pipe']
+            });
+
+            let stderrData = '';
+
+            process.stdin.write(pageCode);
+            process.stdin.end();
+
+            process.stderr.on('data', (data: Buffer) => {
+              stderrData += data.toString();
+            });
+
+            process.on('close', (code: number) => {
+              if (code !== 0) {
+                validationErrors.push(`${pageName} compilation failed: ${stderrData}`);
+              } else if (verbose) {
+                Logger.info(`✓ ${pageName} syntax valid`);
+              }
+              resolve();
+            });
+
+            process.on('error', () => {
+              resolve();
+            });
+          });
         }
-
-        await new Promise<void>((resolve) => {
-          const process = spawn('python3', ['-m', 'py_compile', '-'], {
-            stdio: ['pipe', 'pipe', 'pipe']
-          });
-
-          let stderrData = '';
-
-          process.stdin.write(pageCode);
-          process.stdin.end();
-
-          process.stderr.on('data', (data: Buffer) => {
-            stderrData += data.toString();
-          });
-
-          process.on('close', (code: number) => {
-            if (code !== 0 && verbose) {
-              Logger.warning(`${pageName} syntax validation failed:${stderrData}`);
-            } else if (code === 0 && verbose) {
-              Logger.info(`✓ ${pageName} syntax valid`);
-            }
-            resolve();
-          });
-
-          process.on('error', () => {
-            resolve();
-          });
-        });
       }
     }
   }
 
-  if (verbose) {
-    Logger.info('Code validation complete');
+  // If ANY validation found errors, FAIL
+  if (validationErrors.length > 0) {
+    Logger.error('❌ GENERATED CODE HAS SYNTAX ERRORS:');
+    validationErrors.forEach((err, i) => {
+      Logger.error(`   ${i + 1}. ${err}`);
+    });
+    Logger.newline();
+    Logger.info('This is an AI generation issue. Please try running the conversion again.');
+
+    throw new ConversionError(
+      'Generated code contains syntax errors',
+      'CODE_VALIDATION',
+      'The AI generated invalid Python code. Try running the conversion again or use --verbose for more details.'
+    );
   }
+
+  if (verbose) {
+    Logger.success('✓ Code syntax validation passed');
+  }
+}
+
+/**
+ * Validate Python code with regex patterns for common syntax errors
+ */
+function validateWithRegex(code: string): string[] {
+  const errors: string[] = [];
+  const lines = code.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+
+    // Check for common Python syntax errors
+
+    // 1. Missing colon after def/if/for/while/class
+    if (/^\s*(def|if|elif|else|for|while|with|class|try|except|finally)\s+.*[^:]$/.test(line) &&
+        !line.trim().endsWith('\\') &&
+        line.trim().length > 0) {
+      // Make sure it's not a continuation line
+      const stripped = line.trim();
+      if (stripped.startsWith('def ') || stripped.startsWith('class ') ||
+          stripped.startsWith('if ') || stripped.startsWith('for ') ||
+          stripped.startsWith('while ') || stripped.startsWith('with ')) {
+        errors.push(`Line ${lineNum}: Missing colon after statement`);
+      }
+    }
+
+    // 2. Unmatched quotes
+    const singleQuotes = (line.match(/'/g) || []).length;
+    const doubleQuotes = (line.match(/"/g) || []).length;
+    if (singleQuotes % 2 !== 0 || doubleQuotes % 2 !== 0) {
+      // Could be multi-line string, but flag as potential error
+      if (!line.includes('"""') && !line.includes("'''")) {
+        errors.push(`Line ${lineNum}: Unmatched quotes detected`);
+      }
+    }
+
+    // 3. Invalid indentation (mixing tabs and spaces - very basic check)
+    if (line.startsWith('\t') && line.includes('    ')) {
+      errors.push(`Line ${lineNum}: Mixed tabs and spaces in indentation`);
+    }
+
+    // 4. Missing parentheses in function calls
+    if (/\b(print|len|str|int|float|list|dict|set|tuple)\s+[^(]/.test(line)) {
+      errors.push(`Line ${lineNum}: Function call missing parentheses`);
+    }
+  }
+
+  return errors;
 }
 
 function generateSimpleBDD(actions: any[], scenarioName: string): BDDOutput {

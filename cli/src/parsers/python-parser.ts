@@ -217,13 +217,20 @@ function createPatterns() {
     goto: /\.goto\(["'](.+?)["']\)/,
 
     // Element locators (Modern Playwright API)
-    getByRole: /\.get_by_role\(["'](\w+)["'](?:,\s*name=["'](.+?)["'])?\)/,
-    getByText: /\.get_by_text\(["'](.+?)["'](?:,\s*exact=(True|False))?\)/,
-    getByLabel: /\.get_by_label\(["'](.+?)["']\)/,
-    getByPlaceholder: /\.get_by_placeholder\(["'](.+?)["']\)/,
-    getByTestId: /\.get_by_test_id\(["'](.+?)["']\)/,
-    getByTitle: /\.get_by_title\(["'](.+?)["']\)/,
-    getByAltText: /\.get_by_alt_text\(["'](.+?)["']\)/,
+    // Enhanced to support complex parameters: name=..., exact=..., etc.
+    getByRole: /\.get_by_role\(["'](\w+)["'](?:,\s*name=["']([^"']+?)["'])?(?:,\s*exact=(True|False))?\)/,
+    getByText: /\.get_by_text\(["']([^"']+?)["'](?:,\s*exact=(True|False))?\)/,
+    getByLabel: /\.get_by_label\(["']([^"']+?)["'](?:,\s*exact=(True|False))?\)/,
+    getByPlaceholder: /\.get_by_placeholder\(["']([^"']+?)["'](?:,\s*exact=(True|False))?\)/,
+    getByTestId: /\.get_by_test_id\(["']([^"']+?)["']\)/,
+    getByTitle: /\.get_by_title\(["']([^"']+?)["']\)/,
+    getByAltText: /\.get_by_alt_text\(["']([^"']+?)["']\)/,
+
+    // Method chaining: .filter(), .nth(), .first(), .last()
+    filterChain: /\.filter\(/,
+    nthChain: /\.nth\((\d+)\)/,
+    firstChain: /\.first\(\)/,
+    lastChain: /\.last\(\)/,
 
     // Legacy locators
     locator: /\.locator\(["'](.+?)["']\)/,
@@ -478,13 +485,21 @@ function parseElementInteraction(
   pageContext: string
 ): ParsedPlaywrightAction | null {
 
+  // First, strip off any method chaining (.filter(), .nth(), .first(), .last())
+  // These are Playwright modifiers that don't affect the core action
+  let cleanedLine = line
+    .replace(/\.filter\([^)]*\)/g, '')  // Remove .filter(...)
+    .replace(/\.nth\(\d+\)/g, '')       // Remove .nth(0), .nth(1), etc.
+    .replace(/\.first\(\)/g, '')        // Remove .first()
+    .replace(/\.last\(\)/g, '');        // Remove .last()
+
   // First, extract the locator
   let locatorType: ParsedPlaywrightAction['locatorType'];
   let locatorValue: string | undefined;
   let elementName: string | undefined;
 
-  // Try get_by_role
-  const roleMatch = line.match(patterns.getByRole);
+  // Try get_by_role (use cleanedLine for matching)
+  const roleMatch = cleanedLine.match(patterns.getByRole);
   if (roleMatch) {
     locatorType = 'role';
     locatorValue = roleMatch[1];  // e.g., 'textbox', 'button'
@@ -493,7 +508,7 @@ function parseElementInteraction(
 
   // Try get_by_text
   if (!locatorType) {
-    const textMatch = line.match(patterns.getByText);
+    const textMatch = cleanedLine.match(patterns.getByText);
     if (textMatch) {
       locatorType = 'text';
       locatorValue = textMatch[1];
@@ -502,7 +517,7 @@ function parseElementInteraction(
 
   // Try get_by_label
   if (!locatorType) {
-    const labelMatch = line.match(patterns.getByLabel);
+    const labelMatch = cleanedLine.match(patterns.getByLabel);
     if (labelMatch) {
       locatorType = 'label';
       locatorValue = labelMatch[1];
@@ -511,7 +526,7 @@ function parseElementInteraction(
 
   // Try get_by_placeholder
   if (!locatorType) {
-    const placeholderMatch = line.match(patterns.getByPlaceholder);
+    const placeholderMatch = cleanedLine.match(patterns.getByPlaceholder);
     if (placeholderMatch) {
       locatorType = 'placeholder';
       locatorValue = placeholderMatch[1];
@@ -520,7 +535,7 @@ function parseElementInteraction(
 
   // Try get_by_test_id
   if (!locatorType) {
-    const testIdMatch = line.match(patterns.getByTestId);
+    const testIdMatch = cleanedLine.match(patterns.getByTestId);
     if (testIdMatch) {
       locatorType = 'testid';
       locatorValue = testIdMatch[1];
@@ -529,7 +544,7 @@ function parseElementInteraction(
 
   // Try get_by_title
   if (!locatorType) {
-    const titleMatch = line.match(patterns.getByTitle);
+    const titleMatch = cleanedLine.match(patterns.getByTitle);
     if (titleMatch) {
       locatorType = 'text';  // Treat title as text for BDD
       locatorValue = titleMatch[1];
@@ -538,7 +553,7 @@ function parseElementInteraction(
 
   // Try locator (CSS/XPath)
   if (!locatorType) {
-    const locatorMatch = line.match(patterns.locator);
+    const locatorMatch = cleanedLine.match(patterns.locator);
     if (locatorMatch) {
       const selector = locatorMatch[1];
       // Determine if CSS or XPath
@@ -549,7 +564,7 @@ function parseElementInteraction(
 
   // If no locator found, try legacy click/fill with selector
   if (!locatorType) {
-    const clickMatch = line.match(patterns.clickSelector);
+    const clickMatch = cleanedLine.match(patterns.clickSelector);
     if (clickMatch) {
       locatorType = 'css';
       locatorValue = clickMatch[1];
@@ -564,7 +579,7 @@ function parseElementInteraction(
       };
     }
 
-    const fillMatch = line.match(patterns.fillSelector);
+    const fillMatch = cleanedLine.match(patterns.fillSelector);
     if (fillMatch) {
       locatorType = 'css';
       locatorValue = fillMatch[1];
@@ -586,11 +601,11 @@ function parseElementInteraction(
     return null;
   }
 
-  // Now determine the action type
+  // Now determine the action type (use cleanedLine for matching)
 
   // Fill
-  if (patterns.fill.test(line)) {
-    const fillMatch = line.match(patterns.fill);
+  if (patterns.fill.test(cleanedLine)) {
+    const fillMatch = cleanedLine.match(patterns.fill);
     return {
       type: 'fill',
       locatorType,
@@ -604,7 +619,7 @@ function parseElementInteraction(
   }
 
   // Click
-  if (patterns.click.test(line)) {
+  if (patterns.click.test(cleanedLine)) {
     return {
       type: 'click',
       locatorType,
@@ -617,7 +632,7 @@ function parseElementInteraction(
   }
 
   // Double click
-  if (patterns.dblclick.test(line)) {
+  if (patterns.dblclick.test(cleanedLine)) {
     return {
       type: 'dblclick',
       locatorType,
@@ -630,7 +645,7 @@ function parseElementInteraction(
   }
 
   // Hover
-  if (patterns.hover.test(line)) {
+  if (patterns.hover.test(cleanedLine)) {
     return {
       type: 'hover',
       locatorType,
@@ -643,8 +658,8 @@ function parseElementInteraction(
   }
 
   // Press key
-  if (patterns.press.test(line)) {
-    const pressMatch = line.match(patterns.press);
+  if (patterns.press.test(cleanedLine)) {
+    const pressMatch = cleanedLine.match(patterns.press);
     return {
       type: 'press',
       locatorType,
@@ -658,7 +673,7 @@ function parseElementInteraction(
   }
 
   // Check
-  if (patterns.check.test(line)) {
+  if (patterns.check.test(cleanedLine)) {
     return {
       type: 'check',
       locatorType,
@@ -671,8 +686,8 @@ function parseElementInteraction(
   }
 
   // Select option
-  if (patterns.selectOption.test(line)) {
-    const selectMatch = line.match(patterns.selectOption);
+  if (patterns.selectOption.test(cleanedLine)) {
+    const selectMatch = cleanedLine.match(patterns.selectOption);
     return {
       type: 'select',
       locatorType,

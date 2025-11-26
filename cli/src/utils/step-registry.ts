@@ -41,10 +41,14 @@ export class StepRegistry {
   private steps: Map<string, StepDefinition>;
   private projectRoot: string;
   private stepsDirectory: string;
+  private registryFile: string;
+  private lockFile: string;
 
   constructor(projectRoot: string) {
     this.projectRoot = projectRoot;
     this.stepsDirectory = path.join(projectRoot, 'features', 'steps');
+    this.registryFile = path.join(projectRoot, '.step-registry.json');
+    this.lockFile = `${this.registryFile}.lock`;
     this.steps = new Map();
   }
 
@@ -371,5 +375,129 @@ export class StepRegistry {
     }));
 
     return JSON.stringify(stepsArray, null, 2);
+  }
+
+  /**
+   * FAILURE-014 FIX: Acquire file lock with retry and timeout
+   * Uses simple file-based locking without external dependencies
+   */
+  private async acquireLock(maxRetries: number = 10, retryDelayMs: number = 100): Promise<() => Promise<void>> {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        // Try to create lock file exclusively (fails if exists)
+        await fs.writeFile(this.lockFile, process.pid.toString(), { flag: 'wx' });
+
+        // Successfully acquired lock, return release function
+        return async () => {
+          try {
+            await fs.unlink(this.lockFile);
+          } catch (error) {
+            // Lock file already removed or doesn't exist
+          }
+        };
+      } catch (error: any) {
+        if (error.code === 'EEXIST') {
+          // Lock file exists, check if it's stale
+          try {
+            const lockContent = await fs.readFile(this.lockFile, 'utf-8');
+            const lockPid = parseInt(lockContent, 10);
+
+            // Check if process still exists (on Unix-like systems)
+            try {
+              process.kill(lockPid, 0); // Signal 0 checks existence without killing
+              // Process exists, wait and retry
+            } catch {
+              // Process doesn't exist, remove stale lock
+              await fs.unlink(this.lockFile);
+              continue; // Retry acquiring lock
+            }
+          } catch {
+            // Can't read lock file, assume it's stale
+            try {
+              await fs.unlink(this.lockFile);
+            } catch {
+              // Ignore
+            }
+          }
+
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error('Failed to acquire registry lock after multiple retries');
+  }
+
+  /**
+   * Internal: Save registry to file (caller must hold lock)
+   */
+  private async saveInternal(): Promise<void> {
+    const data = this.exportToJSON();
+    await fs.writeFile(this.registryFile, data, 'utf-8');
+  }
+
+  /**
+   * Internal: Load registry from file (caller must hold lock)
+   */
+  private async loadInternal(): Promise<void> {
+    try {
+      const data = await fs.readFile(this.registryFile, 'utf-8');
+      const stepsArray = JSON.parse(data);
+
+      this.steps.clear();
+      for (const item of stepsArray) {
+        this.steps.set(item.key, {
+          pattern: item.pattern,
+          decorator: item.decorator,
+          filePath: item.filePath,
+          lineNumber: item.lineNumber,
+          functionName: item.functionName,
+          hasParameters: item.hasParameters,
+          code: '' // Code not stored in registry
+        });
+      }
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') {
+        // File doesn't exist is OK, other errors are not
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * FAILURE-014 FIX: Register new steps with file locking
+   * Prevents race conditions when multiple processes update the registry
+   */
+  async registerSteps(patterns: string[]): Promise<void> {
+    const release = await this.acquireLock();
+
+    try {
+      // Re-load to get latest state from disk
+      await this.loadInternal();
+
+      // Update steps
+      for (const pattern of patterns) {
+        const key = this.normalizePattern(pattern);
+        if (!this.steps.has(key)) {
+          this.steps.set(key, {
+            pattern,
+            decorator: 'when', // Default decorator
+            filePath: '',
+            lineNumber: 0,
+            functionName: '',
+            hasParameters: this.hasParameters(pattern),
+            code: ''
+          });
+        }
+      }
+
+      // Save updated registry
+      await this.saveInternal();
+    } finally {
+      await release();
+    }
   }
 }
