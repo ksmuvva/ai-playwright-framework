@@ -344,45 +344,40 @@ async function parseRecording(filePath: string): Promise<any> {
   // Read the recording file
   const content = await FileUtils.readFile(filePath);
 
-  // Detect format
-  const format = detectRecordingFormat(content, filePath);
+  // UPLIFT: Use Universal Parser for multi-format support
+  // Supports: Python, TypeScript/JavaScript, HAR, JSON
+  const { parseRecording: universalParse } = require('../parsers/universal-parser');
 
-  Logger.info(`Detected format: ${format}`);
+  const result = universalParse(content);
 
-  switch (format) {
-    case 'python':
-      return parsePythonRecording(content);
+  // Check for parsing errors
+  if (result.parseErrors.length > 0) {
+    const errorDetails = result.parseErrors
+      .slice(0, 3)
+      .map(e => `  - ${e.reason}${e.lineNumber ? ` (line ${e.lineNumber})` : ''}`)
+      .join('\n');
 
-    case 'json':
-      return parseJsonRecording(content);
-
-    case 'typescript':
-      throw new ConversionError(
-        'TypeScript recordings are not yet supported',
-        'FORMAT_DETECTION',
-        'Please use Python recordings instead:\n' +
-        '  playwright codegen --target python https://your-site.com\n\n' +
-        'Or provide a JSON recording.'
-      );
-
-    case 'unknown':
-      throw new ConversionError(
-        'Could not detect recording format',
-        'FORMAT_DETECTION',
-        'Supported formats:\n' +
-        '  - Python scripts (.py) from: playwright codegen --target python\n' +
-        '  - JSON recordings (.json)\n\n' +
-        `File: ${filePath}\n` +
-        `First 200 chars:\n${content.substring(0, 200)}...`
-      );
-
-    default:
-      throw new ConversionError(
-        `Unsupported format: ${format}`,
-        'FORMAT_DETECTION',
-        'Please use Python (.py) or JSON (.json) recordings'
-      );
+    throw new ConversionError(
+      `Failed to parse recording (format: ${result.format})`,
+      'RECORDING_PARSE',
+      `Parsing errors:\n${errorDetails}\n\n` +
+      `File: ${filePath}\n` +
+      'Supported formats: Python (.py), TypeScript/JavaScript (.ts/.js), HAR (.har/.json)'
+    );
   }
+
+  // Show warnings if any
+  if (result.warnings.length > 0) {
+    result.warnings.forEach(warning => {
+      Logger.warning(`⚠️  ${warning}`);
+    });
+  }
+
+  // Return parsed actions in legacy format for compatibility
+  return {
+    actions: result.actions,
+    metadata: result.metadata
+  };
 }
 
 /**
