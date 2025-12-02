@@ -163,17 +163,82 @@ except Exception as e:
         return False
 
 
+def install_python_dependencies() -> bool:
+    """Install Python dependencies."""
+    print(f"\n{'─' * 60}")
+    print("Installing Python Dependencies")
+    print(f"{'─' * 60}")
+
+    log_info("Attempting to install dependencies...")
+
+    # Try different installation methods
+    methods = [
+        ("pip install -e .", "pyproject.toml/setup.py"),
+        ("pip install -r requirements.txt", "requirements.txt"),
+    ]
+
+    for cmd, method in methods:
+        log_info(f"Trying {method}...")
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode == 0:
+            log_success(f"Dependencies installed via {method}")
+            return True
+        else:
+            log_warning(f"{method} installation failed, trying next method...")
+
+    # If all methods fail, install core deps manually
+    log_warning("Standard installation methods failed. Installing core dependencies manually...")
+
+    core_deps = [
+        "playwright>=1.40.0",
+        "behave>=1.2.6",
+        "anthropic>=0.30.0",
+        "openai>=1.6.1",
+        "arize-phoenix>=12.16.0",
+        "opentelemetry-api>=1.38.0",
+        "opentelemetry-sdk>=1.38.0",
+        "faker>=20.1.0",
+        "python-dotenv>=1.0.0",
+        "structlog>=24.1.0"
+    ]
+
+    for dep in core_deps:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", dep],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            log_success(f"Installed {dep}")
+        else:
+            log_warning(f"Failed to install {dep}, continuing...")
+
+    return True
+
+
 def main():
     """Main entry point."""
     print("\n" + "=" * 70)
     print("  AI-Playwright-Framework: Complete Setup")
     print("=" * 70)
 
+    # Install dependencies first
+    log_info("Step 1: Installing Python dependencies...")
+    if not install_python_dependencies():
+        log_error("Dependency installation failed!")
+        sys.exit(1)
+
     # Check Playwright package
     version = get_playwright_version()
     if not version:
         log_error("Playwright Python package not installed!")
-        log_info("Run: uv sync")
+        log_info("Run: pip install playwright")
         sys.exit(1)
 
     log_success(f"Playwright package: v{version}")
