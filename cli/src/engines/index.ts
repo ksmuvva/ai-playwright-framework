@@ -69,11 +69,16 @@ export {
 /**
  * Quick access to all global engine instances
  */
+import { errorRecovery as errorRecoveryInstance } from './error-recovery';
+import { autonomousMaintainer as autonomousMaintainerInstance } from './autonomous-maintenance';
+import { semanticReuse as semanticReuseInstance } from './semantic-reuse';
+import { selfImprovement as selfImprovementInstance } from './self-improvement';
+
 export const engines = {
-  errorRecovery: errorRecovery,
-  autonomousMaintainer: autonomousMaintainer,
-  semanticReuse: semanticReuse,
-  selfImprovement: selfImprovement
+  errorRecovery: errorRecoveryInstance,
+  autonomousMaintainer: autonomousMaintainerInstance,
+  semanticReuse: semanticReuseInstance,
+  selfImprovement: selfImprovementInstance
 };
 
 /**
