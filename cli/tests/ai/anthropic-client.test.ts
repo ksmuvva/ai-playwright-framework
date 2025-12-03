@@ -10,13 +10,19 @@ import * as path from 'path';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-describe('AnthropicClient Integration Tests', () => {
+// Check if API key is available
+const apiKey = process.env.ANTHROPIC_API_KEY;
+const runTests = !!apiKey;
+
+const describeWithApiKey = runTests ? describe : describe.skip;
+
+describeWithApiKey('AnthropicClient Integration Tests', () => {
   let client: AnthropicClient;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
 
   beforeAll(() => {
     if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY not set for integration tests');
+      console.warn('⚠️  Skipping AnthropicClient tests: ANTHROPIC_API_KEY not set');
+      return;
     }
     client = new AnthropicClient(apiKey);
   });

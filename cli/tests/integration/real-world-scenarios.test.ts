@@ -24,6 +24,12 @@ import * as dotenv from 'dotenv';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+// Check if API key is available
+const apiKey = process.env.ANTHROPIC_API_KEY;
+const runTests = !!apiKey;
+
+const describeWithApiKey = runTests ? describe : describe.skip;
+
 // Real-world test websites
 const TEST_SITES = {
   SIMPLE: {
@@ -55,7 +61,7 @@ const TEST_SITES = {
   }
 };
 
-describe('Real-World Framework Tests', () => {
+describeWithApiKey('Real-World Framework Tests', () => {
   let tempDir: string;
   let projectDir: string;
   let browser: Browser;
@@ -64,9 +70,9 @@ describe('Real-World Framework Tests', () => {
   let aiClient: AnthropicClient;
 
   beforeAll(async () => {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY required for real-world tests');
+      console.warn('⚠️  Skipping Real-World Framework tests: ANTHROPIC_API_KEY not set');
+      return;
     }
     aiClient = new AnthropicClient(apiKey);
 
