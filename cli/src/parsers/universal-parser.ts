@@ -219,7 +219,8 @@ function routeToParser(content: string, format: RecordingFormat): UniversalParse
       return normalizeHARResult(parseHARFile(content));
 
     case 'json':
-      // TODO: Implement Playwright JSON trace parser
+      // Known limitation: Playwright JSON trace format is not currently supported
+      // The parser currently supports Python (.py), HAR (.har), and TypeScript/JavaScript (.ts/.js) formats
       throw new Error('Playwright JSON trace format not yet supported');
 
     default:

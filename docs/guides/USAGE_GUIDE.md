@@ -541,7 +541,7 @@ playwright install
 ### Documentation
 - Main README: [README.md](../../README.md)
 - Requirements: [REQUIREMENTS.md](../../REQUIREMENTS.md)
-- Architecture: [ARCHITECTURE.md](../../ARCHITECTURE.md)
+- Architecture: [TECHNICAL_ARCHITECTURE.md](../architecture/TECHNICAL_ARCHITECTURE.md)
 - Feature Guides: [docs/features/](../features/)
 
 ### Community

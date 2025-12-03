@@ -14,10 +14,12 @@ Start here to get up and running:
 
 ### For Developers 👨‍💻
 Technical documentation and architecture:
-1. **[Architecture](../ARCHITECTURE.md)** - System design and components
-2. **[AI Features](features/ADVANCED_AI_FEATURES.md)** - AI capabilities overview
-3. **[Meta-Reasoning](features/PHASE2_META_REASONING_FLAKY_FIXES.md)** - Advanced AI features
-4. **[Phoenix Integration](features/PHOENIX_INTEGRATION.md)** - Observability and tracing
+1. **[Architecture](architecture/TECHNICAL_ARCHITECTURE.md)** - System design and components
+2. **[Parser API Guide](guides/PARSER_API_GUIDE.md)** - Recording parser API reference
+3. **[Integration Testing Guide](guides/INTEGRATION_TESTING_GUIDE.md)** - Test suite documentation
+4. **[AI Features](features/ADVANCED_AI_FEATURES.md)** - AI capabilities overview
+5. **[Meta-Reasoning](features/PHASE2_META_REASONING_FLAKY_FIXES.md)** - Advanced AI features
+6. **[Phoenix Integration](features/PHOENIX_INTEGRATION.md)** - Observability and tracing
 
 ### For Maintainers 🔧
 Guides for maintaining and publishing:
@@ -36,9 +38,13 @@ Guides for maintaining and publishing:
 ```
 docs/
 ├── README.md (this file)          # Documentation index
+├── architecture/                  # Technical architecture
+│   └── TECHNICAL_ARCHITECTURE.md # System design and components
 ├── guides/                        # User and maintainer guides
 │   ├── USAGE_GUIDE.md            # Complete CLI reference
 │   ├── LOGGING_GUIDE.md          # Logging configuration
+│   ├── PARSER_API_GUIDE.md       # Recording parser API
+│   ├── INTEGRATION_TESTING_GUIDE.md  # Test suite documentation
 │   ├── NPM_PUBLISH_INSTRUCTIONS.md  # Publishing guide
 │   └── AI_FEATURES_TEST_PLAN.md  # AI testing guide
 ├── features/                      # Feature documentation
@@ -46,7 +52,7 @@ docs/
 │   ├── PHASE2_META_REASONING_FLAKY_FIXES.md  # Meta-reasoning
 │   └── PHOENIX_INTEGRATION.md    # Phoenix observability
 ├── releases/                      # Release notes
-│   └── v1.0.1.md                 # Latest release
+│   └── RELEASE_v1.0.1.md         # Latest release
 └── archive/                       # Technical analysis archive
     └── CODE_QUALITY_ANALYSIS.md  # Architectural decisions & code quality insights
 ```
@@ -67,7 +73,7 @@ docs/
 - **Observability**: See [Phoenix Integration](features/PHOENIX_INTEGRATION.md)
 
 ### For Contributors
-- **Architecture overview**: See [ARCHITECTURE.md](../ARCHITECTURE.md)
+- **Architecture overview**: See [TECHNICAL_ARCHITECTURE.md](architecture/TECHNICAL_ARCHITECTURE.md)
 - **Code requirements**: See [REQUIREMENTS.md](../REQUIREMENTS.md)
 - **Version history**: See [CHANGELOG.md](../CHANGELOG.md)
 

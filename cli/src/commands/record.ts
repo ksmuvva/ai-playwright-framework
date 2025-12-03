@@ -44,7 +44,8 @@ async function recordScenario(cmdOptions: any): Promise<void> {
     // Auto-convert if requested
     if (options.convertToBdd) {
       Logger.info('Auto-converting to BDD...');
-      // TODO: Call convert command
+      // Note: Auto-conversion feature is planned for a future release
+      // For now, we provide the command to run manually
       Logger.info('Run: playwright-ai convert ' + recordingFile);
     } else {
       Logger.newline();
