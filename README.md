@@ -67,11 +67,9 @@ npm link
 playwright-ai --version
 ```
 
-**From npm (Coming Soon):**
+**From npm (Not Yet Published):**
 
-```bash
-npm install -g playwright-ai-framework
-```
+> **Note:** The package is not yet available on npm. For now, please use the source installation method above. npm publication is planned for a future release.
 
 ### Generate Your Framework
 
@@ -951,7 +949,7 @@ Our documentation has been comprehensively organized using advanced reasoning te
 - **[Documentation Index](docs/README.md)** - Find any documentation quickly
 
 **For Developers:**
-- **[Architecture](ARCHITECTURE.md)** - Technical design and system architecture
+- **[Architecture](docs/architecture/TECHNICAL_ARCHITECTURE.md)** - Technical design and system architecture
 - **[AI Features](docs/features/ADVANCED_AI_FEATURES.md)** - AI capabilities overview
 - **[Meta-Reasoning](docs/features/PHASE2_META_REASONING_FLAKY_FIXES.md)** - Advanced AI features
 

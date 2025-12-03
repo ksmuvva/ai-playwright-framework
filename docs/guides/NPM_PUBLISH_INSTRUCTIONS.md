@@ -95,14 +95,14 @@ npm notice 📦  playwright-ai-framework@1.0.0
 npm notice === Tarball Contents ===
 npm notice 1.5kB  package.json
 npm notice 7.8kB  README.md
-npm notice XXkB   dist/
-npm notice XXkB   templates/
+npm notice dist/
+npm notice templates/
 npm notice === Tarball Details ===
 npm notice name:          playwright-ai-framework
 npm notice version:       1.0.0
-npm notice package size:  XXX kB
-npm notice unpacked size: XXX kB
-npm notice total files:   XXX
+npm notice package size:  [varies]
+npm notice unpacked size: [varies]
+npm notice total files:   [varies]
 npm notice
 + playwright-ai-framework@1.0.0
 ```
@@ -123,14 +123,14 @@ npm view playwright-ai-framework
 
 **Should show:**
 ```
-playwright-ai-framework@1.0.0 | MIT | deps: XX | versions: 1
+playwright-ai-framework@1.0.0 | MIT | deps: [varies] | versions: 1
 AI-powered Playwright test automation framework generator
 https://github.com/ksmuvva/ai-playwright-framework#readme
 
 dist
 .tarball: https://registry.npmjs.org/playwright-ai-framework/-/playwright-ai-framework-1.0.0.tgz
-.shasum: XXXXX
-.integrity: sha512-XXXXX==
+.shasum: [generated hash]
+.integrity: [generated integrity hash]
 ```
 
 ### Step 3: Test Global Installation

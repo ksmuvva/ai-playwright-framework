@@ -7,7 +7,7 @@ AI-powered command-line tool that generates complete test automation frameworks 
 For complete documentation, see:
 - **[Usage Guide](../docs/guides/USAGE_GUIDE.md)** - Complete CLI reference and examples
 - **[Main README](../README.md)** - Project overview
-- **[Architecture](../ARCHITECTURE.md)** - Technical design
+- **[Architecture](../docs/architecture/TECHNICAL_ARCHITECTURE.md)** - Technical design
 
 ## 🚀 Quick Start
 
@@ -183,8 +183,7 @@ npm publish
 - [Usage Guide](../docs/guides/USAGE_GUIDE.md) - Complete usage documentation
 - [Main README](../README.md) - Project overview
 - [Requirements](../REQUIREMENTS.md) - Detailed requirements
-- [Architecture](../ARCHITECTURE.md) - Technical architecture
-- [Implementation Plan](../IMPLEMENTATION_PLAN.md) - Build roadmap
+- [Architecture](../docs/architecture/TECHNICAL_ARCHITECTURE.md) - Technical architecture
 
 ## 🏃 Examples
 
