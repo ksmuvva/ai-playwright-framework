@@ -12,14 +12,20 @@ import * as path from 'path';
 // Load environment variables
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-describe('Reasoning Module', () => {
+// Check if API key is available
+const apiKey = process.env.ANTHROPIC_API_KEY;
+const runTests = !!apiKey;
+
+const describeWithApiKey = runTests ? describe : describe.skip;
+
+describeWithApiKey('Reasoning Module', () => {
   let client: Anthropic;
   const model = 'claude-sonnet-4-5-20250929';
 
   beforeAll(() => {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY not set in environment');
+      console.warn('⚠️  Skipping Reasoning Module tests: ANTHROPIC_API_KEY not set');
+      return;
     }
     client = new Anthropic({ apiKey });
   });

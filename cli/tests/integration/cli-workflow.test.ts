@@ -14,6 +14,10 @@ import * as dotenv from 'dotenv';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+// Check if API key is available for tests that need it
+const apiKey = process.env.ANTHROPIC_API_KEY;
+const hasApiKey = !!apiKey;
+
 describe('CLI Workflow Integration Tests', () => {
   let tempDir: string;
   let projectDir: string;
@@ -49,7 +53,7 @@ describe('CLI Workflow Integration Tests', () => {
       // Verify directory structure
       const expectedDirs = [
         'features',
-        'steps',
+        'features/steps',  // Behave standard: steps inside features
         'helpers',
         'pages',
         'fixtures',
@@ -122,7 +126,7 @@ describe('CLI Workflow Integration Tests', () => {
       expect(content).toContain('reports/');
     });
 
-    it('should generate requirements.txt', async () => {
+    it('should generate pyproject.toml (UV package manager)', async () => {
       const generator = new PythonGenerator();
 
       await generator.generate(projectDir, {
@@ -133,11 +137,12 @@ describe('CLI Workflow Integration Tests', () => {
         aiProvider: 'anthropic'
       });
 
-      const requirementsPath = path.join(projectDir, 'requirements.txt');
-      const exists = await fs.pathExists(requirementsPath);
+      // Framework now uses UV package manager with pyproject.toml instead of requirements.txt
+      const pyprojectPath = path.join(projectDir, 'pyproject.toml');
+      const exists = await fs.pathExists(pyprojectPath);
       expect(exists).toBe(true);
 
-      const content = await fs.readFile(requirementsPath, 'utf-8');
+      const content = await fs.readFile(pyprojectPath, 'utf-8');
       expect(content).toContain('playwright');
       expect(content).toContain('behave');
       expect(content).toContain('anthropic');
@@ -164,13 +169,15 @@ describe('CLI Workflow Integration Tests', () => {
     });
   });
 
-  describe('Recording to BDD Conversion Workflow', () => {
+  const describeWithApiKey = hasApiKey ? describe : describe.skip;
+
+  describeWithApiKey('Recording to BDD Conversion Workflow', () => {
     let aiClient: AnthropicClient;
 
     beforeAll(() => {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
-        throw new Error('ANTHROPIC_API_KEY required for integration tests');
+        console.warn('⚠️  Skipping BDD Conversion tests: ANTHROPIC_API_KEY not set');
+        return;
       }
       aiClient = new AnthropicClient(apiKey);
     });
@@ -283,13 +290,13 @@ describe('CLI Workflow Integration Tests', () => {
     }, 90000);
   });
 
-  describe('AI Feature Integration', () => {
+  describeWithApiKey('AI Feature Integration', () => {
     let aiClient: AnthropicClient;
 
     beforeAll(() => {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
-        throw new Error('ANTHROPIC_API_KEY required');
+        console.warn('⚠️  Skipping AI Feature Integration tests: ANTHROPIC_API_KEY not set');
+        return;
       }
       aiClient = new AnthropicClient(apiKey);
     });
