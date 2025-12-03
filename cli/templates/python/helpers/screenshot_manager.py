@@ -17,7 +17,7 @@ class ScreenshotManager:
 
     @classmethod
     def _sanitize_filename(cls, name: str) -> str:
-        """
+        r"""
         Sanitize filename to be cross-platform compatible
 
         Removes/replaces characters that are invalid in Windows filenames:

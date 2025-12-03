@@ -219,9 +219,7 @@ function routeToParser(content: string, format: RecordingFormat): UniversalParse
       return normalizeHARResult(parseHARFile(content));
 
     case 'json':
-      // Known limitation: Playwright JSON trace format is not currently supported
-      // The parser currently supports Python (.py), HAR (.har), and TypeScript/JavaScript (.ts/.js) formats
-      throw new Error('Playwright JSON trace format not yet supported');
+      return normalizeJSONResult(parseJSONRecording(content));
 
     default:
       throw new Error(`Unsupported format: ${format}`);
@@ -289,6 +287,121 @@ function normalizeHARResult(result: HARParseResult): UniversalParseResult {
       totalRequests: result.metadata.totalRequests,
       hasFormSubmissions: result.metadata.hasFormSubmissions,
       hasAjaxCalls: result.metadata.hasAjaxCalls
+    },
+    parseErrors: result.parseErrors.map(err => ({
+      reason: err.reason,
+      context: err.context
+    })),
+    warnings: []
+  };
+}
+
+/**
+ * Parse JSON recording format
+ *
+ * Supports two formats:
+ * 1. { "actions": [...] } - Object with actions array
+ * 2. [...] - Direct array of actions
+ */
+function parseJSONRecording(content: string): JSONParseResult {
+  try {
+    const parsed = JSON.parse(content);
+    let actions: any[] = [];
+    const parseErrors: Array<{ reason: string; context?: string }> = [];
+
+    // Format 1: Object with actions array
+    if (parsed.actions && Array.isArray(parsed.actions)) {
+      actions = normalizeJSONActions(parsed.actions);
+    }
+    // Format 2: Direct array
+    else if (Array.isArray(parsed)) {
+      actions = normalizeJSONActions(parsed);
+    }
+    // Unsupported format
+    else {
+      parseErrors.push({
+        reason: 'JSON format not recognized. Expected: {"actions": [...]} or [...]',
+        context: 'Root object'
+      });
+    }
+
+    return {
+      actions,
+      metadata: {
+        startUrl: parsed.startUrl || actions.find(a => a.type === 'goto')?.url,
+        totalActions: actions.length,
+        format: 'json'
+      },
+      parseErrors
+    };
+  } catch (error) {
+    return {
+      actions: [],
+      metadata: {
+        totalActions: 0,
+        format: 'json'
+      },
+      parseErrors: [{
+        reason: `Invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+        context: 'JSON parsing'
+      }]
+    };
+  }
+}
+
+/**
+ * Normalize JSON actions to standard format
+ */
+function normalizeJSONActions(actions: any[]): any[] {
+  return actions.map((action, index) => {
+    // Handle different action formats
+    const normalized: any = {
+      type: action.type || action.name || 'unknown',
+      index
+    };
+
+    // Copy common fields
+    if (action.url) normalized.url = action.url;
+    if (action.selector) normalized.selector = action.selector;
+    if (action.value !== undefined) normalized.value = action.value;
+    if (action.text !== undefined) normalized.value = action.text; // text is alias for value
+    if (action.key) normalized.key = action.key;
+    if (action.button) normalized.button = action.button;
+    if (action.expected) normalized.expected = action.expected;
+    if (action.locatorType) normalized.locatorType = action.locatorType;
+    if (action.locatorValue) normalized.locatorValue = action.locatorValue;
+
+    return normalized;
+  });
+}
+
+/**
+ * JSON parse result interface
+ */
+interface JSONParseResult {
+  actions: any[];
+  metadata: {
+    startUrl?: string;
+    totalActions: number;
+    format: string;
+    [key: string]: any;
+  };
+  parseErrors: Array<{
+    reason: string;
+    context?: string;
+  }>;
+}
+
+/**
+ * Normalize JSON parser result
+ */
+function normalizeJSONResult(result: JSONParseResult): UniversalParseResult {
+  return {
+    format: 'json',
+    actions: result.actions,
+    metadata: {
+      startUrl: result.metadata.startUrl,
+      totalActions: result.metadata.totalActions
     },
     parseErrors: result.parseErrors.map(err => ({
       reason: err.reason,
