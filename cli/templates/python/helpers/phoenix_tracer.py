@@ -119,8 +119,9 @@ class PhoenixTracer:
                     "phoenix_ui_launching",
                     message="Launching Phoenix UI server..."
                 )
-                # Launch with explicit working directory to avoid temp file issues
-                cls._phoenix_session = px.launch_app(working_dir=str(phoenix_dir))
+                # FIX: Phoenix API changed - launch_app() no longer accepts working_dir parameter
+                # The PHOENIX_WORKING_DIR environment variable (set above) is used instead
+                cls._phoenix_session = px.launch_app()
                 logger.info(
                     "phoenix_ui_launched",
                     ui_url="http://localhost:6006",

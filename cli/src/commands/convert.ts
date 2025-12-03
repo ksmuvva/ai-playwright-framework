@@ -583,32 +583,55 @@ async function validateGeneratedCode(bddOutput: BDDOutput, verbose: boolean = fa
     let pythonCompilationSucceeded = true;
 
     if (pythonAvailable) {
-      await new Promise<void>((resolve) => {
-        const process = spawn('python3', ['-m', 'py_compile', '-'], {
-          stdio: ['pipe', 'pipe', 'pipe']
+      // FIX: py_compile doesn't properly support stdin compilation
+      // Write to temp file, compile it, then clean up
+      const os = require('os');
+      const fs = require('fs').promises;
+      const tempDir = os.tmpdir();
+      const tempFile = path.join(tempDir, `validate_steps_${Date.now()}.py`);
+
+      try {
+        // Write code to temp file
+        await fs.writeFile(tempFile, bddOutput.steps);
+
+        // Compile the temp file
+        await new Promise<void>((resolve) => {
+          const process = spawn('python3', ['-m', 'py_compile', tempFile], {
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
+
+          let stderrData = '';
+
+          process.stderr.on('data', (data: Buffer) => {
+            stderrData += data.toString();
+          });
+
+          process.on('close', (code: number) => {
+            if (code !== 0) {
+              pythonCompilationSucceeded = false;
+              validationErrors.push(`Python compilation failed: ${stderrData}`);
+            } else if (verbose) {
+              Logger.info('✓ Step definitions syntax valid');
+            }
+            resolve();
+          });
+
+          process.on('error', () => resolve());
         });
-
-        let stderrData = '';
-
-        process.stdin.write(bddOutput.steps);
-        process.stdin.end();
-
-        process.stderr.on('data', (data: Buffer) => {
-          stderrData += data.toString();
-        });
-
-        process.on('close', (code: number) => {
-          if (code !== 0) {
-            pythonCompilationSucceeded = false;
-            validationErrors.push(`Python compilation failed: ${stderrData}`);
-          } else if (verbose) {
-            Logger.info('✓ Step definitions syntax valid');
-          }
-          resolve();
-        });
-
-        process.on('error', () => resolve());
-      });
+      } catch (error) {
+        if (verbose) {
+          Logger.warning(`Failed to create temp file for validation: ${error}`);
+        }
+      } finally {
+        // Clean up temp file
+        try {
+          await fs.unlink(tempFile);
+          // Also try to clean up the compiled .pyc file
+          await fs.unlink(tempFile + 'c').catch(() => {});
+        } catch (error) {
+          // Ignore cleanup errors
+        }
+      }
     } else if (verbose) {
       Logger.warning('Python3 not available for syntax validation, skipping validation');
     }
@@ -636,45 +659,66 @@ async function validateGeneratedCode(bddOutput: BDDOutput, verbose: boolean = fa
     });
 
     if (pythonAvailable) {
+      const os = require('os');
+      const fs = require('fs').promises;
+      const tempDir = os.tmpdir();
+
       for (const [pageName, pageCode] of Object.entries(bddOutput.pageObjects)) {
         if (typeof pageCode === 'string' && pageCode.trim()) {
           if (verbose) {
             Logger.info(`Validating ${pageName} syntax...`);
           }
 
-          // IMPROVED: Treat page object validation errors as warnings only
-          // Page objects may have incomplete imports or references that will be resolved at runtime
-          await new Promise<void>((resolve) => {
-            const process = spawn('python3', ['-m', 'py_compile', '-'], {
-              stdio: ['pipe', 'pipe', 'pipe']
-            });
+          // FIX: Use temp file for page object validation too
+          const tempFile = path.join(tempDir, `validate_${pageName}_${Date.now()}.py`);
 
-            let stderrData = '';
+          try {
+            // Write page code to temp file
+            await fs.writeFile(tempFile, pageCode);
 
-            process.stdin.write(pageCode);
-            process.stdin.end();
+            // IMPROVED: Treat page object validation errors as warnings only
+            // Page objects may have incomplete imports or references that will be resolved at runtime
+            await new Promise<void>((resolve) => {
+              const process = spawn('python3', ['-m', 'py_compile', tempFile], {
+                stdio: ['pipe', 'pipe', 'pipe']
+              });
 
-            process.stderr.on('data', (data: Buffer) => {
-              stderrData += data.toString();
-            });
+              let stderrData = '';
 
-            process.on('close', (code: number) => {
-              if (code !== 0) {
-                // Don't block on page object validation errors - just warn
-                validationWarnings.push(`${pageName} may have syntax issues: ${stderrData}`);
-                if (verbose) {
-                  Logger.warning(`⚠️  ${pageName} validation warning (non-blocking)`);
+              process.stderr.on('data', (data: Buffer) => {
+                stderrData += data.toString();
+              });
+
+              process.on('close', (code: number) => {
+                if (code !== 0) {
+                  // Don't block on page object validation errors - just warn
+                  validationWarnings.push(`${pageName} may have syntax issues: ${stderrData}`);
+                  if (verbose) {
+                    Logger.warning(`⚠️  ${pageName} validation warning (non-blocking)`);
+                  }
+                } else if (verbose) {
+                  Logger.info(`✓ ${pageName} syntax valid`);
                 }
-              } else if (verbose) {
-                Logger.info(`✓ ${pageName} syntax valid`);
-              }
-              resolve();
-            });
+                resolve();
+              });
 
-            process.on('error', () => {
-              resolve();
+              process.on('error', () => {
+                resolve();
+              });
             });
-          });
+          } catch (error) {
+            if (verbose) {
+              Logger.warning(`Failed to validate ${pageName}: ${error}`);
+            }
+          } finally {
+            // Clean up temp file
+            try {
+              await fs.unlink(tempFile);
+              await fs.unlink(tempFile + 'c').catch(() => {});
+            } catch (error) {
+              // Ignore cleanup errors
+            }
+          }
         }
       }
     }

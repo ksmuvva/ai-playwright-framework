@@ -57,6 +57,13 @@ dev = [
 requires = ["setuptools>=65.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+# FIX: Flat layout compatibility - disable automatic package discovery
+# This prevents "Multiple top-level packages discovered in a flat-layout" error
+# The project uses a flat layout with multiple top-level directories (features, pages, helpers, etc.)
+[tool.setuptools]
+packages = []
+py-modules = []
+
 [tool.uv]
 dev-dependencies = []
 
