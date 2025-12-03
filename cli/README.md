@@ -180,7 +180,7 @@ npm publish
 
 ## 📚 Documentation
 
-- [Usage Guide](./USAGE_GUIDE.md) - Complete usage documentation
+- [Usage Guide](../docs/guides/USAGE_GUIDE.md) - Complete usage documentation
 - [Main README](../README.md) - Project overview
 - [Requirements](../REQUIREMENTS.md) - Detailed requirements
 - [Architecture](../ARCHITECTURE.md) - Technical architecture
@@ -379,7 +379,7 @@ MIT License - see [LICENSE](../LICENSE) file
 
 ## 🙋 Support
 
-- **Documentation**: [Usage Guide](./USAGE_GUIDE.md)
+- **Documentation**: [Usage Guide](../docs/guides/USAGE_GUIDE.md)
 - **Issues**: [GitHub Issues](https://github.com/your-org/playwright-ai-framework/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/your-org/playwright-ai-framework/discussions)
 
