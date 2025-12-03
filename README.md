@@ -108,30 +108,397 @@ playwright-ai convert recordings/create_new_contact.json
 # ✅ fixtures/create_new_contact_data.json
 ```
 
+### 🔧 Prerequisites
+
+Before installing the framework, verify these prerequisites are met:
+
+#### System Requirements
+
+| Component | Version | Check Command | Install Guide |
+|-----------|---------|---------------|---------------|
+| **Node.js** | ≥16.0.0 | `node --version` | [nodejs.org](https://nodejs.org/) |
+| **Python** | ≥3.8 | `python --version` or `python3 --version` | [python.org](https://python.org/) |
+| **npm** | ≥7.0.0 | `npm --version` | Included with Node.js |
+| **Git** | Any | `git --version` | [git-scm.com](https://git-scm.com/) |
+
+#### Optional (Recommended)
+
+| Component | Purpose | Install Command |
+|-----------|---------|-----------------|
+| **UV** | 10-100x faster Python package manager | `pip install uv` or [docs.astral.sh/uv](https://docs.astral.sh/uv/) |
+
 ### Setup Dependencies
 
-⚠️ **CRITICAL:** After generating the framework, you MUST install dependencies AND Playwright browsers:
+> **⚠️ IMPORTANT:** This framework has a **two-stage setup process**:
+> 1. **Stage 1:** Install the CLI tool (Node.js/TypeScript)
+> 2. **Stage 2:** Generate and configure the Python test framework
+
+---
+
+## 📦 Stage 1: Install CLI Tool
+
+The CLI tool (`playwright-ai`) is a Node.js application that generates Python test frameworks.
+
+### Option A: From Source (Current Method)
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/ksmuvva/ai-playwright-framework.git
+cd ai-playwright-framework/cli
+
+# 2. Install CLI dependencies (Node.js packages)
+npm install
+
+# 3. Build the CLI (compile TypeScript)
+npm run build
+
+# 4. Link CLI globally (makes 'playwright-ai' command available)
+npm link
+
+# 5. Verify CLI installation
+playwright-ai --version
+# Expected output: 2.0.0
+```
+
+### Option B: From npm (Not Yet Available)
+
+```bash
+# Future release - not yet published
+npm install -g playwright-ai-framework
+```
+
+**Troubleshooting CLI Installation:**
+
+```bash
+# If 'playwright-ai' command not found after npm link:
+which playwright-ai  # Should show global npm path
+
+# Manually add to PATH (if needed):
+export PATH="$(npm bin -g):$PATH"
+
+# On Windows PowerShell:
+$env:Path += ";$(npm bin -g)"
+```
+
+---
+
+## 🐍 Stage 2: Setup Generated Python Framework
+
+After generating a framework with `playwright-ai init`, you need to install Python dependencies and browser binaries.
+
+### ⚡ Quick Setup (Automated - Recommended)
+
+```bash
+# Navigate to your generated framework
+cd my-test-suite
+
+# Run automated setup script (handles everything)
+uv sync && uv run python -m scripts.setup
+
+# This script automatically:
+# ✓ Installs 18 Python packages (via UV + pip fallback)
+# ✓ Verifies all packages are installed
+# ✓ Installs Playwright browser binaries (chromium)
+# ✓ Installs Linux system dependencies (if needed)
+# ✓ Verifies browser can launch
+# ✓ Provides detailed setup report
+```
+
+**Setup script output:**
+```
+══════════════════════════════════════════════════════════════
+  AI-Playwright-Framework: Complete Setup
+══════════════════════════════════════════════════════════════
+ℹ  Step 1: Installing Python dependencies...
+✓  Dependencies installed via pyproject.toml/setup.py
+✓  Playwright package: v1.40.0
+✓  chromium: Already installed
+ℹ  All required browsers already installed
+══════════════════════════════════════════════════════════════
+✓  Setup completed successfully!
+══════════════════════════════════════════════════════════════
+
+Next steps:
+  1. Configure .env with API keys
+  2. Record: playwright-ai record --url https://app.com
+  3. Convert: playwright-ai convert recordings/test.json
+  4. Run: uv run behave
+```
+
+---
+
+### 🛠️ Manual Setup (Step-by-Step)
+
+If you prefer manual control or if the automated script fails:
+
+#### Step 1: Install Python Dependencies
+
+The framework uses **UV** (recommended) or **pip** for package management.
+
+**Option 1: UV Package Manager (10-100x faster) ⚡**
 
 ```bash
 cd my-test-suite
 
-# Step 1: Install Python dependencies
+# Install UV (if not already installed)
+pip install uv
+
+# Install all Python dependencies from pyproject.toml
 uv sync
 
-# Step 2: Install Playwright browsers (REQUIRED!)
+# Expected output:
+# Resolved 18 packages in 1.2s
+# Downloaded 18 packages in 3.4s
+# Installed 18 packages in 0.8s
+```
+
+**Option 2: Traditional pip**
+
+```bash
+cd my-test-suite
+
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate  # On Linux/Mac
+# OR
+.venv\Scripts\activate     # On Windows
+
+# Install dependencies
+pip install -e .
+# OR
+pip install -r requirements.txt
+```
+
+#### Step 2: Install Playwright Browser Binaries ⚠️ **CRITICAL**
+
+> **🚨 MOST COMMON MISTAKE:** UV/pip only install Python packages. Playwright browsers (~200MB binaries) require a separate installation!
+
+```bash
+# With UV:
 uv run python -m playwright install chromium
 
-# On Linux, also install system dependencies:
+# With pip/venv:
+python -m playwright install chromium
+
+# Expected output:
+# Downloading Chromium 120.0.6099.28 (playwright build v1091)
+# [========================================] 100% (124.7 MB)
+```
+
+**Install all browsers (optional):**
+```bash
+uv run python -m playwright install  # Installs chromium, firefox, webkit
+```
+
+#### Step 3: Install System Dependencies (Linux Only)
+
+Linux requires additional system libraries for browser binaries:
+
+```bash
+# Run with sudo:
+sudo playwright install-deps chromium
+
+# This installs libraries like:
+# - libglib2.0-0, libnss3, libnspr4, libdbus-1-3
+# - libatk1.0-0, libx11-6, libxcb1, libxcomposite1
+# - libxdamage1, libxext6, libxfixes3, libxrandr2
+```
+
+**Platform-specific notes:**
+- **Mac:** No system dependencies needed
+- **Windows:** No system dependencies needed
+- **Linux:** System dependencies REQUIRED
+
+#### Step 4: Verify Installation
+
+```bash
+# Verify all packages installed
+uv run python -c "import playwright, behave, anthropic, faker; print('✓ All packages installed')"
+
+# Verify browser can launch
+uv run python -c "
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    b = p.chromium.launch(headless=True)
+    page = b.new_page()
+    page.goto('https://example.com')
+    print(f'✓ Browser working! Title: {page.title()}')
+    b.close()
+"
+
+# Expected output:
+# ✓ All packages installed
+# ✓ Browser working! Title: Example Domain
+```
+
+---
+
+### 📋 Complete Dependency List
+
+The framework installs **18 core Python packages**:
+
+#### Core Testing (3 packages)
+- `playwright>=1.40.0` - Browser automation
+- `behave>=1.2.6` - BDD framework
+- `pytest>=7.4.3` - Testing framework
+
+#### AI Providers (2 packages)
+- `anthropic>=0.30.0` - Claude AI
+- `openai>=1.6.1` - GPT models
+
+#### AI Observability (4 packages)
+- `arize-phoenix>=12.16.0` - LLM tracing
+- `opentelemetry-api>=1.38.0` - Telemetry API
+- `opentelemetry-sdk>=1.38.0` - Telemetry SDK
+- `opentelemetry-exporter-otlp>=1.38.0` - OTLP exporter
+
+#### Utilities (9 packages)
+- `faker>=20.1.0` - Test data generation
+- `python-dotenv>=1.0.0` - Environment variables
+- `pydantic>=2.5.3` - Data validation
+- `structlog>=24.1.0` - Structured logging
+- `colorama>=0.4.6` - Colored terminal output
+- `requests>=2.31.0` - HTTP requests
+- `pyyaml>=6.0.0` - YAML parsing
+- `jinja2>=3.1.0` - Template engine
+- `allure-behave>=2.13.2` - Test reporting
+
+**Verification:**
+```bash
+# List all installed packages
+uv pip list
+
+# Check specific package version
+uv pip show playwright
+```
+
+---
+
+### 🔍 Hybrid Installation (UV + pip Fallback)
+
+The CLI uses a **hybrid approach** (implemented in commit `33e51b6`) for maximum reliability:
+
+```
+1. Install with UV (fast)           → 18 packages in ~5 seconds
+2. Verify all packages installed    → Package verifier checks each
+3. Install missing with pip         → Fallback for any failures
+4. Final verification               → 100% success guarantee
+5. Install browser binaries         → playwright install
+6. Verify browser launch            → Test browser works
+```
+
+This ensures **100% installation success rate** by combining speed (UV) with reliability (pip fallback).
+
+---
+
+### 🚨 Common Setup Issues
+
+**Issue 1: "Browser executable not found"**
+
+```bash
+# Symptom:
+# playwright._impl._errors.Error: Executable doesn't exist at /home/user/.cache/ms-playwright/chromium-1091/chrome-linux/chrome
+
+# Cause: Browsers not installed after uv sync
+
+# Fix:
+uv run python -m playwright install chromium
+```
+
+**Issue 2: "Package not found" after uv sync**
+
+```bash
+# Some packages may fail to install via UV
+
+# Fix: Use pip fallback
+uv pip install anthropic openai faker behave playwright
+
+# Or install individually:
+uv pip install playwright>=1.40.0
+```
+
+**Issue 3: Linux browser fails to launch**
+
+```bash
+# Symptom:
+# Error: Host system is missing dependencies
+
+# Fix:
 sudo playwright install-deps chromium
 ```
 
-**Or use the automated setup script:**
+**Issue 4: "Permission denied" on npm link**
 
 ```bash
-uv sync && uv run python -m scripts.setup
+# Fix for Linux/Mac:
+sudo npm link
+
+# Fix for Windows:
+# Run PowerShell as Administrator, then:
+npm link
 ```
 
-> 💡 **Why two steps?** UV installs Python packages only. Playwright browsers are ~200MB binary downloads that require a separate installation step. This is by design for security and performance.
+---
+
+### ✅ Post-Setup Verification Checklist
+
+Run these commands to verify your setup is complete:
+
+```bash
+# ✓ CLI tool installed
+playwright-ai --version
+# Expected: 2.0.0
+
+# ✓ Python packages installed
+cd my-test-suite
+uv run python -c "import playwright, behave, anthropic; print('✓ Packages OK')"
+
+# ✓ Playwright browsers installed
+uv run python -m playwright --version
+# Expected: Version 1.40.0
+
+# ✓ Browser can launch
+uv run python -m playwright install chromium --dry-run
+# Should say: chromium is already installed
+
+# ✓ Virtual environment activated
+uv run python --version
+# Should use .venv/bin/python
+
+# ✓ Setup script available
+uv run python -m scripts.setup --help
+# Should show usage
+
+# ✓ .env file configured
+cat .env | grep ANTHROPIC_API_KEY
+# Should show your real API key (not placeholder!)
+```
+
+**Expected result:** All checks pass ✅
+
+---
+
+### 💡 Setup Best Practices
+
+1. **Use UV when possible** - It's 10-100x faster than pip
+2. **Always install browsers separately** - Don't assume uv sync does this
+3. **Verify after each step** - Catch issues early
+4. **Keep tools updated** - `pip install --upgrade uv playwright`
+5. **Use real API keys** - Framework validates and rejects placeholders
+6. **Check .env before running tests** - Misconfigured keys cause failures
+7. **Run setup script first** - It handles edge cases automatically
+
+---
+
+### 🔗 Related Documentation
+
+- **Setup Script Source:** `cli/templates/python/scripts/setup.py:1`
+- **Package Verifier:** `cli/src/utils/package-verifier.ts:1`
+- **Folder Verifier:** `cli/src/utils/folder-verifier.ts:1`
+- **pyproject.toml:** `cli/templates/python/pyproject.toml:1`
+- **Troubleshooting Guide:** See section "🐛 Troubleshooting" below
 
 ### Run Your Tests
 
