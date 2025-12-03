@@ -10,6 +10,8 @@ import { InitOptions } from '../types';
 import { PythonGenerator } from '../generators/python-generator';
 import { FileUtils } from '../utils/file-utils';
 import { Logger } from '../utils/logger';
+import { PackageVerifier } from '../utils/package-verifier';
+import { FolderVerifier } from '../utils/folder-verifier';
 
 const execAsync = promisify(exec);
 
@@ -42,6 +44,9 @@ async function initializeFramework(cmdOptions: any): Promise<void> {
 
     // Generate framework
     await generateFramework(projectDir, options);
+
+    // Verify folder structure
+    await verifyFolderStructure(projectDir);
 
     // Create/Update CLI .env file
     await createCliEnvFile(options);
@@ -290,6 +295,48 @@ async function generateFramework(projectDir: string, options: InitOptions): Prom
   }
 }
 
+async function verifyFolderStructure(projectDir: string): Promise<void> {
+  const spinner = ora('Verifying folder structure...').start();
+
+  try {
+    const verificationResult = await FolderVerifier.verifyFolderStructure(projectDir);
+
+    if (verificationResult.success) {
+      spinner.succeed(chalk.green('✓ All folders and files verified successfully!'));
+    } else {
+      spinner.warn(chalk.yellow('Some folders or files are missing'));
+
+      // Attempt to create missing folders
+      if (verificationResult.missingFolders.length > 0) {
+        Logger.newline();
+        await FolderVerifier.createMissingFolders(projectDir, verificationResult.missingFolders);
+
+        // Re-verify
+        const recheck = await FolderVerifier.verifyFolderStructure(projectDir);
+        if (recheck.success) {
+          spinner.succeed(chalk.green('✓ Missing folders created and verified!'));
+        }
+      }
+
+      // Log missing files
+      if (verificationResult.missingFiles.length > 0) {
+        Logger.newline();
+        Logger.warning('Missing files detected:');
+        verificationResult.missingFiles.forEach(file => {
+          Logger.error(`  ✗ ${file}`);
+        });
+        Logger.newline();
+        Logger.error('Framework generation may have failed. Please check the logs above.');
+        throw new Error('Framework verification failed - missing critical files');
+      }
+    }
+
+  } catch (error) {
+    spinner.fail();
+    throw error;
+  }
+}
+
 async function initializeGit(projectDir: string): Promise<void> {
   const spinner = ora('Initializing git repository...').start();
 
@@ -322,35 +369,74 @@ async function installDependencies(projectDir: string, options: InitOptions): Pr
     return;
   }
 
-  const spinner = ora('Installing Python dependencies with UV...').start();
+  const spinner = ora('Installing Python dependencies...').start();
+  let installationMethod: 'uv' | 'pip' | 'hybrid' = 'uv';
 
   try {
     if (options.language === 'python') {
       // Check if UV is installed
       spinner.text = 'Checking for UV installation...';
+      let hasUV = false;
       try {
         await execAsync('uv --version', { cwd: projectDir });
+        hasUV = true;
         spinner.succeed(chalk.green('UV package manager detected'));
       } catch (uvCheckError) {
-        spinner.warn(chalk.yellow('UV not found. Please install UV for 10-100x faster installs!'));
+        spinner.warn(chalk.yellow('UV not found. Installing with pip...'));
         Logger.newline();
-        Logger.info('Install UV with one command:');
+        Logger.info('💡 For 10-100x faster installs, install UV:');
         Logger.code('  curl -LsSf https://astral.sh/uv/install.sh | sh  # Unix/macOS');
         Logger.code('  powershell -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows');
         Logger.newline();
-        Logger.info('Falling back to pip (slower)...');
+      }
 
+      if (hasUV) {
+        // Try UV first
+        spinner.start('Installing dependencies with UV (10-100x faster than pip)...');
+        try {
+          await execAsync('uv sync', { cwd: projectDir, timeout: 180000 }); // 3 min timeout
+          installationMethod = 'uv';
+          spinner.succeed(chalk.green('UV installation completed'));
+        } catch (uvError) {
+          spinner.warn(chalk.yellow('UV installation had issues, will verify and fix...'));
+          installationMethod = 'hybrid';
+        }
+
+        // Install Playwright browsers
+        spinner.start('Installing Playwright browsers...');
+        try {
+          await execAsync('uv run playwright install chromium', {
+            cwd: projectDir,
+            timeout: 180000
+          });
+          spinner.succeed(chalk.green('Playwright browsers installed'));
+        } catch (browserError) {
+          spinner.warn(chalk.yellow('Browser installation had issues, continuing...'));
+        }
+      } else {
         // Fallback to pip
+        installationMethod = 'pip';
         spinner.start('Creating virtual environment with venv...');
-        await execAsync('python3 -m venv .venv || python -m venv .venv', { cwd: projectDir });
+        await execAsync('python3 -m venv .venv || python -m venv .venv', {
+          cwd: projectDir,
+          timeout: 60000
+        });
 
         spinner.text = 'Installing Python packages with pip...';
         const pipCommand = process.platform === 'win32'
           ? '.venv\\Scripts\\pip'
           : '.venv/bin/pip';
 
+        // Upgrade pip first
+        await execAsync(`${pipCommand} install --upgrade pip setuptools wheel`, {
+          cwd: projectDir,
+          timeout: 60000
+        });
+
+        // Install from pyproject.toml
         await execAsync(`${pipCommand} install -e .`, {
-          cwd: projectDir
+          cwd: projectDir,
+          timeout: 300000 // 5 min timeout
         });
 
         spinner.text = 'Installing Playwright browsers...';
@@ -359,31 +445,123 @@ async function installDependencies(projectDir: string, options: InitOptions): Pr
           : '.venv/bin/python';
 
         await execAsync(`${pythonCommand} -m playwright install chromium`, {
-          cwd: projectDir
+          cwd: projectDir,
+          timeout: 180000
         });
 
         spinner.succeed(chalk.green('Dependencies installed successfully (with pip)'));
-        return;
       }
 
-      // UV is installed - use it!
-      spinner.start('Installing dependencies with UV (10-100x faster than pip)...');
+      // ==========================================
+      // COMPREHENSIVE PACKAGE VERIFICATION
+      // ==========================================
+      Logger.newline();
+      spinner.start('Verifying all packages are installed...');
 
-      // UV automatically creates venv and installs dependencies
-      await execAsync('uv sync', { cwd: projectDir });
+      const verificationResult = await PackageVerifier.verifyPackages(projectDir);
 
-      // Install Playwright browsers using UV
-      spinner.text = 'Installing Playwright browsers...';
-      await execAsync('uv run playwright install chromium', {
-        cwd: projectDir
-      });
+      if (verificationResult.success) {
+        spinner.succeed(chalk.green('✓ All packages verified successfully!'));
+      } else {
+        spinner.warn(chalk.yellow('Some packages are missing or failed verification'));
 
-      spinner.succeed(chalk.green('✨ Dependencies installed successfully with UV!'));
+        // If UV was used but packages are missing, try pip for missing packages
+        if (installationMethod === 'uv' || installationMethod === 'hybrid') {
+          Logger.newline();
+          Logger.warning('Attempting to install missing packages with pip...');
+
+          const missingPackages = [
+            ...verificationResult.missingPackages,
+            ...verificationResult.failedPackages
+          ];
+
+          if (missingPackages.length > 0) {
+            spinner.start(`Installing ${missingPackages.length} missing packages with pip...`);
+
+            const installResult = await PackageVerifier.installMissingPackages(
+              projectDir,
+              missingPackages
+            );
+
+            if (installResult.success) {
+              spinner.succeed(chalk.green('All missing packages installed with pip!'));
+              installationMethod = 'hybrid';
+            } else {
+              spinner.warn(chalk.yellow('Some packages could not be installed'));
+              Logger.newline();
+              Logger.error('Installation errors:');
+              installResult.errors.forEach(err => Logger.error(`  ${err}`));
+            }
+
+            // Final verification
+            Logger.newline();
+            spinner.start('Running final package verification...');
+            const finalVerification = await PackageVerifier.verifyPackages(projectDir);
+
+            if (finalVerification.success) {
+              spinner.succeed(chalk.green('✓ All packages verified successfully!'));
+            } else {
+              spinner.fail(chalk.red('Package verification failed'));
+              Logger.newline();
+              console.log(PackageVerifier.generateReport(finalVerification));
+              Logger.newline();
+              Logger.error('Some packages are still missing. You may need to install them manually.');
+            }
+          }
+        } else {
+          // pip installation failed verification
+          spinner.fail(chalk.red('Package verification failed'));
+          Logger.newline();
+          console.log(PackageVerifier.generateReport(verificationResult));
+        }
+      }
+
+      // ==========================================
+      // VERIFY PLAYWRIGHT BROWSERS
+      // ==========================================
+      Logger.newline();
+      spinner.start('Verifying Playwright browsers...');
+      const browsersOK = await PackageVerifier.verifyPlaywrightBrowsers(projectDir);
+
+      if (!browsersOK) {
+        spinner.warn(chalk.yellow('Browser verification failed, attempting reinstall...'));
+        try {
+          const pythonCommand = process.platform === 'win32'
+            ? '.venv\\Scripts\\python'
+            : '.venv/bin/python';
+
+          await execAsync(`${pythonCommand} -m playwright install chromium`, {
+            cwd: projectDir,
+            timeout: 180000
+          });
+
+          spinner.succeed(chalk.green('Playwright browsers installed successfully'));
+        } catch (browserError) {
+          spinner.fail(chalk.red('Failed to install Playwright browsers'));
+          Logger.newline();
+          Logger.warning('You may need to install browsers manually:');
+          Logger.code('  source .venv/bin/activate  # or .venv\\Scripts\\activate on Windows');
+          Logger.code('  playwright install chromium');
+        }
+      } else {
+        spinner.succeed(chalk.green('Playwright browsers verified'));
+      }
+
+      // Display installation summary
+      Logger.newline();
+      Logger.title('✨ Installation Summary');
+      Logger.keyValue('  Method', installationMethod.toUpperCase());
+      Logger.keyValue('  Packages', verificationResult.installedPackages.length.toString());
+      if (installationMethod === 'hybrid') {
+        Logger.info('  Note: Used UV + pip hybrid installation for maximum compatibility');
+      }
     }
 
   } catch (error) {
     spinner.fail();
     Logger.error('Failed to install dependencies automatically.');
+    Logger.newline();
+    Logger.error(`Error: ${error}`);
     Logger.newline();
     Logger.warning('Please install manually:');
     Logger.newline();
@@ -397,6 +575,7 @@ async function installDependencies(projectDir: string, options: InitOptions): Pr
     Logger.code('  source .venv/bin/activate  # On Windows: .venv\\Scripts\\activate');
     Logger.code('  pip install -e .');
     Logger.code('  playwright install chromium');
+    throw error;
   }
 }
 
