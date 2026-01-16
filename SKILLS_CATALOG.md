@@ -933,6 +933,1516 @@ src/claude_playwright_agent/skills/builtins/e6_6_intelligent_waits/
 
 ---
 
+## 2. Orchestrator Agent Skills
+
+### 2.1 orchestrator-core (e2_1)
+
+**Type:** Core Orchestrator Skill
+**Agent:** Orchestrator Agent
+**Category:** orchestration
+**Epic:** E2 - Multi-Agent Orchestration
+
+**Purpose:** Central coordination system for multi-agent workflows with context propagation
+
+**Capabilities:**
+- Workflow orchestration with context propagation
+- Agent spawning and task distribution
+- Result aggregation with context preservation
+- Error handling and recovery with context tracking
+
+**Key Components:**
+
+**ExecutionContext Dataclass:**
+```python
+@dataclass
+class ExecutionContext:
+    workflow_id: str                    # Unique workflow identifier
+    task_id: str                        # Current task identifier
+    parent_context: ExecutionContext    # Parent context for nested workflows
+    recording_id: str                   # Associated recording ID
+    project_path: str                   # Project root path
+    agent_chain: list[str]              # Ordered list of agent IDs
+    context_chain: list[str]            # Chain of context IDs
+    metadata: dict[str, Any]            # Additional metadata
+    created_at: str                     # Creation timestamp
+    updated_at: str                     # Last update timestamp
+```
+
+**Workflow Orchestration:**
+- Create and manage execution contexts
+- Spawn child agents with inherited context
+- Propagate context through agent chain
+- Aggregate results with context preservation
+
+**Usage Example:**
+```python
+from skills.builtins.e2_1_orchestrator_core import ExecutionContext, OrchestratorCore
+
+# Create root context
+context = ExecutionContext(
+    task_id="ingest_recording",
+    project_path="/path/to/project",
+    recording_id="rec_123"
+)
+
+# Create child context for nested execution
+child_context = context.create_child(
+    task_id="parse_actions",
+    agent_id="ingestion_agent"
+)
+
+# Update metadata
+context.update_metadata("file_path", "/recordings/test.spec.js")
+context.add_agent("ingestion_agent")
+```
+
+**Configuration:**
+```yaml
+orchestrator_core:
+  enabled: true
+  max_concurrent_agents: 10
+  agent_timeout: 300
+  context_propagation: true
+```
+
+**Dependencies:**
+- e1_2_state_management
+- e2_2_lifecycle_management
+- e2_3_inter_agent_communication
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e2_1_orchestrator_core/
+├── __init__.py
+├── main.py
+└── skill.yaml
+```
+
+---
+
+### 2.2 lifecycle-management (e2_2)
+
+**Type:** Orchestrator Skill
+**Agent:** Orchestrator Agent
+**Category:** orchestration
+**Epic:** E2 - Multi-Agent Orchestration
+
+**Purpose:** Manage agent lifecycle from initialization to termination
+
+**Capabilities:**
+- Agent initialization and configuration
+- Health monitoring and heartbeat tracking
+- Graceful shutdown and cleanup
+- Agent state management
+
+**Lifecycle States:**
+```
+INITIALIZING → READY → RUNNING → STOPPING → TERMINATED
+                      ↓
+                   FAILED
+```
+
+**Key Features:**
+- Automatic agent discovery and registration
+- Health check monitoring with configurable intervals
+- Resource cleanup on termination
+- State persistence and recovery
+
+**Configuration:**
+```yaml
+lifecycle_management:
+  enabled: true
+  health_check_interval: 30
+  max_startup_time: 60
+  shutdown_timeout: 30
+  auto_restart: false
+```
+
+**Dependencies:**
+- e1_2_state_management
+- e2_1_orchestrator_core
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e2_2_lifecycle_management/
+```
+
+---
+
+### 2.3 inter-agent-communication (e2_3)
+
+**Type:** Communication Skill
+**Agent:** Orchestrator Agent
+**Category:** orchestration
+**Epic:** E2 - Multi-Agent Orchestration
+
+**Purpose:** Enable message passing and communication between agents
+
+**Capabilities:**
+- Message queue management
+- Publish-subscribe messaging
+- Request-response patterns
+- Message routing and filtering
+
+**Message Types:**
+- **Task Messages:** Assign tasks to agents
+- **Result Messages:** Return results from agents
+- **Control Messages:** Start/stop/pause agents
+- **Event Messages:** Broadcast events
+
+**Usage Example:**
+```python
+from skills.builtins.e2_3_inter_agent_communication import MessageBus, Message
+
+# Create message bus
+bus = MessageBus()
+
+# Send task message
+task_message = Message(
+    sender="orchestrator",
+    receiver="ingestion_agent",
+    type="task",
+    data={"file_path": "/recordings/test.spec.js"}
+)
+await bus.send(task_message)
+
+# Subscribe to events
+async def on_test_complete(message):
+    print(f"Test completed: {message.data}")
+
+bus.subscribe("test_complete", on_test_complete)
+```
+
+**Configuration:**
+```yaml
+inter_agent_communication:
+  enabled: true
+  message_queue_size: 1000
+  message_timeout: 60
+  persist_messages: true
+```
+
+**Dependencies:**
+- e1_2_state_management
+- e2_1_orchestrator_core
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e2_3_inter_agent_communication/
+```
+
+---
+
+### 2.4 task-queue-scheduling (e2_4)
+
+**Type:** Scheduling Skill
+**Agent:** Orchestrator Agent
+**Category:** orchestration
+**Epic:** E2 - Multi-Agent Orchestration
+
+**Purpose:** Schedule and distribute tasks across available agents
+
+**Capabilities:**
+- Task queue management
+- Priority-based scheduling
+- Load balancing across agents
+- Task dependency resolution
+
+**Scheduling Strategies:**
+- **FIFO:** First-in-first-out
+- **Priority:** Higher priority tasks first
+- **Round Robin:** Distribute evenly
+- **Shortest Job First:** Optimize for speed
+
+**Configuration:**
+```yaml
+task_queue_scheduling:
+  enabled: true
+  scheduling_strategy: "priority"
+  max_queue_size: 1000
+  task_timeout: 300
+  retry_failed_tasks: true
+  max_retries: 3
+```
+
+**Dependencies:**
+- e1_2_state_management
+- e2_1_orchestrator_core
+- e2_3_inter_agent_communication
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e2_4_task_queue_scheduling/
+```
+
+---
+
+### 2.5 health-monitoring (e2_5)
+
+**Type:** Monitoring Skill
+**Agent:** Orchestrator Agent
+**Category:** orchestration
+**Epic:** E2 - Multi-Agent Orchestration
+
+**Purpose:** Monitor health and performance of all agents
+
+**Capabilities:**
+- Agent heartbeat tracking
+- Performance metrics collection
+- Anomaly detection
+- Alert generation
+
+**Monitored Metrics:**
+- CPU usage
+- Memory usage
+- Response time
+- Task success rate
+- Error rate
+
+**Health States:**
+- **HEALTHY:** All metrics normal
+- **DEGRADED:** Some metrics elevated
+- **UNHEALTHY:** Critical issues detected
+- **UNKNOWN:** Agent not responding
+
+**Configuration:**
+```yaml
+health_monitoring:
+  enabled: true
+  check_interval: 30
+  alert_threshold:
+    cpu_percent: 80
+    memory_percent: 85
+    response_time_ms: 5000
+  alert_channel: "console"
+```
+
+**Dependencies:**
+- e1_2_state_management
+- e2_1_orchestrator_core
+- e2_2_lifecycle_management
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e2_5_health_monitoring/
+```
+
+---
+
+## 3. Ingestion Agent Skills
+
+### 3.1 ingestion-agent (e3_1)
+
+**Type:** Core Ingestion Skill
+**Agent:** Ingestion Agent
+**Category:** ingestion
+**Epic:** E3 - Recording Ingestion
+
+**Purpose:** Main entry point for ingesting Playwright recordings
+
+**Capabilities:**
+- File validation and parsing
+- Recording format detection
+- Batch processing
+- Error recovery
+
+**Supported Formats:**
+- Playwright Python (.py)
+- Playwright JavaScript (.js)
+- Playwright TypeScript (.ts)
+- JSON recordings (.json)
+
+**Usage Example:**
+```python
+from skills.builtins.e3_1_ingestion_agent import IngestionAgent
+
+agent = IngestionAgent()
+
+# Ingest single file
+result = await agent.ingest("/recordings/test.spec.js")
+
+# Ingest batch
+results = await agent.ingest_batch([
+    "/recordings/test1.spec.js",
+    "/recordings/test2.spec.js"
+])
+```
+
+**Configuration:**
+```yaml
+ingestion_agent:
+  enabled: true
+  validate_recording: true
+  max_file_size_mb: 10
+  batch_size: 50
+```
+
+**Dependencies:**
+- e1_2_state_management
+- e3_2_playwright_parser
+- e3_5_ingestion_logging
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e3_1_ingestion_agent/
+```
+
+### 3.5 ingestion-logging (e3_5)
+
+**Type:** Logging Skill
+**Agent:** Ingestion Agent
+**Category:** ingestion
+**Epic:** E3 - Recording Ingestion
+
+**Purpose:** Detailed logging for ingestion process
+
+**Capabilities:**
+- Structured logging
+- Log aggregation
+- Ingestion metrics tracking
+- Debug logging
+
+**Log Levels:**
+- DEBUG: Detailed diagnostic information
+- INFO: General informational messages
+- WARNING: Warning messages for potential issues
+- ERROR: Error messages for failures
+
+**Metrics Tracked:**
+- Files processed
+- Actions extracted
+- Errors encountered
+- Processing time
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e3_5_ingestion_logging/
+```
+
+---
+
+## 4. Deduplication Agent Skills
+
+### 4.1 deduplication-agent (e4_1)
+
+**Type:** Core Deduplication Skill
+**Agent:** Deduplication Agent
+**Category:** deduplication
+**Epic:** E4 - Pattern Deduplication
+
+**Purpose:** Coordinate deduplication workflow
+
+**Capabilities:**
+- Workflow orchestration
+- Pattern detection coordination
+- Result aggregation
+- Metric collection
+
+**Deduplication Strategies:**
+- Exact match detection
+- Fuzzy matching
+- Pattern similarity
+- Behavioral analysis
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e4_1_deduplication_agent/
+```
+
+### 4.5 selector-catalog (e4_5)
+
+**Type:** Catalog Skill
+**Agent:** Deduplication Agent
+**Category:** deduplication
+**Epic:** E4 - Pattern Deduplication
+
+**Purpose:** Maintain catalog of all selectors for analysis
+
+**Capabilities:**
+- Selector indexing
+- Usage frequency tracking
+- Selector health monitoring
+- Selector optimization suggestions
+
+**Catalog Features:**
+- Cross-referenced selector database
+- Selector variant tracking
+- Stability metrics
+- Performance analytics
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e4_5_selector_catalog/
+```
+
+---
+
+## 5. BDD Conversion Agent Skills
+
+### 5.1 bdd-conversion (e5_1)
+
+**Type:** Core BDD Skill
+**Agent:** BDD Conversion Agent
+**Category:** bdd_conversion
+**Epic:** E5 - BDD Test Generation
+
+**Purpose:** Main BDD conversion workflow coordinator
+
+**Capabilities:**
+- Gherkin generation orchestration
+- Step definition creation
+- Scenario optimization
+- Feature file management
+
+**Workflow:**
+```
+Deduplicated Actions → Gherkin Scenarios → Step Definitions → Optimized Features
+```
+
+**Configuration:**
+```yaml
+bdd_conversion:
+  enabled: true
+  gherkin_language: "en"
+  step_definition_style: "behave"
+  optimize_scenarios: true
+```
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e5_1_bdd_conversion/
+```
+
+### 5.5 feature-management (e5_5)
+
+**Type:** Management Skill
+**Agent:** BDD Conversion Agent
+**Category:** bdd_conversion
+**Epic:** E5 - BDD Test Generation
+
+**Purpose:** Manage feature files and organization
+
+**Capabilities:**
+- Feature file organization
+- Tag management
+- Feature versioning
+- Dependency tracking
+
+**Organization Strategies:**
+- By feature/functionality
+- By page/section
+- By user journey
+- Custom organization
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e5_5_feature_management/
+```
+
+---
+
+## 6. Advanced Recording Skills
+
+### 6.1 advanced-recording (e6_1)
+
+**Type:** Recording Skill
+**Agent:** Recording Agent
+**Category:** recording
+**Epic:** E6 - Advanced Recording Techniques
+
+**Purpose:** Video recording, screenshots, and trace capture with full context
+
+**Capabilities:**
+- Video recording (WebM/MP4)
+- Screenshot capture (PNG/JPEG)
+- Trace files with full context
+- Artifact management and cleanup
+
+**Recording Features:**
+```python
+# Video recording
+await page.video.save_as("/ recordings/test.webm")
+
+# Screenshots
+await page.screenshot(path="screenshot.png", full_page=True)
+
+# Trace files
+context = await browser.new_context(record_trace_dir="/traces")
+await context.tracing.start_chunk(title="test chunk")
+await context.tracing.stop_chunk(path="/traces/test.zip")
+```
+
+**Configuration:**
+```yaml
+advanced_recording:
+  enabled: true
+  record_video: true
+  capture_screenshots: true
+  save_traces: true
+  video_size: {width: 1280, height: 720}
+  screenshot_type: "png"
+```
+
+**Artifacts Generated:**
+- videos/ - Test execution videos
+- screenshots/ - Failure screenshots
+- traces/ - Playwright trace files
+- har/ - Network archives
+
+**Dependencies:**
+- e1_2_state_management
+- e3_1_ingestion_agent
+- e3_2_playwright_parser
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e6_1_advanced_recording/
+├── __init__.py
+├── main.py
+└── skill.yaml
+```
+
+---
+
+### 6.2 network-recording (e6_2)
+
+**Type:** Network Skill
+**Agent:** Recording Agent
+**Category:** recording
+**Epic:** E6 - Advanced Recording Techniques
+
+**Purpose:** Capture and analyze network traffic during test execution
+
+**Capabilities:**
+- HAR file generation
+- Network request/response logging
+- API call tracking
+- Performance metrics
+
+**Network Data Captured:**
+- Request URLs and methods
+- Request/response headers
+- Request/response bodies
+- Status codes
+- Timing information
+- Network errors
+
+**Usage Example:**
+```python
+from skills.builtins.e6_2_network_recording import NetworkRecorder
+
+# Start network recording
+recorder = NetworkRecorder(page)
+await recorder.start()
+
+# Execute test
+await page.click("#load-data")
+
+# Get network logs
+logs = await recorder.get_logs()
+api_calls = [log for log in logs if log['url'].startswith('/api/')]
+
+# Save HAR file
+await recorder.save_har("/network/test.har")
+```
+
+**Configuration:**
+```yaml
+network_recording:
+  enabled: true
+  save_har_files: true
+  capture_bodies: true
+  capture_headers: true
+  max_body_size_mb: 5
+```
+
+**Use Cases:**
+- Debug API issues
+- Verify API calls
+- Performance analysis
+- Security testing
+
+**Dependencies:**
+- e1_2_state_management
+- e3_1_ingestion_agent
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e6_2_network_recording/
+```
+
+---
+
+### 6.3 visual-regression (e6_3)
+
+**Type:** Visual Testing Skill
+**Agent:** Recording Agent
+**Category:** recording
+**Epic:** E6 - Advanced Recording Techniques
+
+**Purpose:** Visual regression testing with screenshot comparison
+
+**Capabilities:**
+- Baseline screenshot capture
+- Screenshot comparison
+- Difference highlighting
+- Visual diff reports
+
+**Comparison Modes:**
+- **Exact:** Pixel-perfect comparison
+- **Layout:** Ignore content, compare structure
+- **Content:** Ignore layout, compare content
+- **Fuzzy:** Allow minor differences
+
+**Usage Example:**
+```python
+from skills.builtins.e6_3_visual_regression import VisualRegression
+
+regression = VisualRegression(page)
+
+# Capture baseline
+await regression.capture_baseline("dashboard")
+
+# Compare with baseline
+result = await regression.compare("dashboard")
+
+if result.has_differences:
+    # View diff report
+    await regression.save_diff_report("dashboard_diff.png")
+```
+
+**Configuration:**
+```yaml
+visual_regression:
+  enabled: true
+  comparison_mode: "fuzzy"
+  threshold: 0.1
+  ignore_regions:
+    - "#dynamic-content"
+    - ".timestamp"
+```
+
+**Report Features:**
+- Side-by-side comparison
+- Difference highlighting
+- Similarity score
+- Accept/reject workflow
+
+**Dependencies:**
+- e1_2_state_management
+- e6_1_advanced_recording
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e6_3_visual_regression/
+```
+
+---
+
+### 6.4 performance-recording (e6_4)
+
+**Type:** Performance Skill
+**Agent:** Recording Agent
+**Category:** recording
+**Epic:** E6 - Advanced Recording Techniques
+
+**Purpose:** Performance metrics collection during test execution
+
+**Capabilities:**
+- Page load time tracking
+- Resource timing analysis
+- Core Web Vitals measurement
+- Performance bottleneck detection
+
+**Metrics Collected:**
+- **Page Load Time:** Time to fully load page
+- **Time to First Byte (TTFB):** Server response time
+- **First Contentful Paint (FCP):** First visual content
+- **Largest Contentful Paint (LCP):** Main content loaded
+- **Cumulative Layout Shift (CLS):** Layout stability
+- **First Input Delay (FID):** Interactivity
+
+**Usage Example:**
+```python
+from skills.builtins.e6_4_performance_recording import PerformanceRecorder
+
+recorder = PerformanceRecorder(page)
+await recorder.start()
+
+# Navigate to page
+await page.goto("https://example.com")
+
+# Get performance metrics
+metrics = await recorder.get_metrics()
+
+print(f"LCP: {metrics.lcp}ms")
+print(f"CLS: {metrics.cls}")
+print(f"FID: {metrics.fid}ms")
+```
+
+**Configuration:**
+```yaml
+performance_recording:
+  enabled: true
+  collect_core_web_vitals: true
+  collect_resource_timing: true
+  collect_navigation_timing: true
+```
+
+**Performance Reports:**
+- Summary metrics
+- Resource breakdown
+- Timeline visualization
+- Bottleneck identification
+
+**Dependencies:**
+- e1_2_state_management
+- e6_2_network_recording
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e6_4_performance_recording/
+```
+
+---
+
+### 6.5 recording-enhancement (e6_5)
+
+**Type:** Enhancement Skill
+**Agent:** Recording Agent
+**Category:** recording
+**Epic:** E6 - Advanced Recording Techniques
+
+**Purpose:** Enhance recordings with additional context and metadata
+
+**Capabilities:**
+- Automatic wait insertion
+- Selector optimization
+- Action annotation
+- Metadata enrichment
+
+**Enhancements:**
+- Add intelligent waits before actions
+- Replace fragile selectors with robust ones
+- Add comments and descriptions
+- Tag actions with business context
+
+**Usage Example:**
+```python
+from skills.builtins.e6_5_recording_enhancement import RecordingEnhancer
+
+enhancer = RecordingEnhancer()
+
+original_actions = [
+    {"action": "click", "selector": "#submit-btn"}
+]
+
+# Enhance with intelligent waits and better selectors
+enhanced = await enhancer.enhance_actions(original_actions)
+
+# Result:
+# {
+#   "action": "click",
+#   "selector": "data-testid=submit-button",
+#   "wait": {"strategy": "smart", "condition": "visible"},
+#   "description": "Submit form"
+# }
+```
+
+**Configuration:**
+```yaml
+recording_enhancement:
+  enabled: true
+  add_intelligent_waits: true
+  optimize_selectors: true
+  add_metadata: true
+  add_descriptions: true
+```
+
+**Benefits:**
+- More reliable tests
+- Better documentation
+- Self-healing selectors
+- Easier maintenance
+
+**Dependencies:**
+- e1_2_state_management
+- e3_1_ingestion_agent
+- e6_6_intelligent_waits
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e6_5_recording_enhancement/
+```
+
+---
+
+## 7. Custom Skills Support
+
+### 7.1 skill-registry (e7_1)
+
+**Type:** Registry Skill
+**Agent:** System
+**Category:** custom_skills
+**Epic:** E7 - Custom Skills
+
+**Purpose:** Registry for all skills (built-in and custom)
+
+**Capabilities:**
+- Skill discovery and registration
+- Metadata management
+- Dependency resolution
+- Version tracking
+
+**Registry Features:**
+- Automatic skill discovery
+- Skill metadata indexing
+- Dependency graph management
+- Version compatibility checking
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e7_1_skill_registry/
+```
+
+---
+
+### 7.2 manifest-parser (e7_2)
+
+**Type:** Parser Skill
+**Agent:** System
+**Category:** custom_skills
+**Epic:** E7 - Custom Skills
+
+**Purpose:** Parse skill.yaml manifest files
+
+**Capabilities:**
+- YAML validation
+- Schema enforcement
+- Metadata extraction
+- Dependency parsing
+
+**Manifest Schema:**
+```yaml
+name: skill_name
+version: 1.0.0
+description: Skill description
+author: Author name
+license: MIT
+python_dependencies: []
+dependencies: []
+tags: []
+capabilities: []
+settings: {}
+```
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e7_2_manifest_parser/
+```
+
+---
+
+### 7.3 custom-skill-support (e7_3)
+
+**Type:** Support Skill
+**Agent:** System
+**Category:** custom_skills
+**Epic:** E7 - Custom Skills
+
+**Purpose:** Framework for creating custom skills
+
+**Capabilities:**
+- Skill template generation
+- Best practices enforcement
+- Testing utilities
+- Documentation generation
+
+**Skill Template:**
+```python
+"""
+Custom skill template
+"""
+
+from typing import Any, Dict
+
+async def custom_skill(input_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Main entry point for custom skill
+
+    Args:
+        input_data: Input parameters
+
+    Returns:
+        Result dictionary
+    """
+    # Implementation here
+    return {"success": True, "result": {}}
+```
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e7_3_custom_skill_support/
+```
+
+---
+
+### 7.4 lifecycle-management (e7_4)
+
+**Type:** Lifecycle Skill
+**Agent:** System
+**Category:** custom_skills
+**Epic:** E7 - Custom Skills
+
+**Purpose:** Manage custom skill lifecycle
+
+**Capabilities:**
+- Skill installation
+- Skill updates
+- Skill removal
+- Skill state management
+
+**Lifecycle States:**
+- INSTALLED
+- ACTIVE
+- INACTIVE
+- DEPRECATED
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e7_4_lifecycle_management/
+```
+
+---
+
+### 7.5 discovery-documentation (e7_5)
+
+**Type:** Documentation Skill
+**Agent:** System
+**Category:** custom_skills
+**Epic:** E7 - Custom Skills
+
+**Purpose:** Automatic documentation generation for skills
+
+**Capabilities:**
+- README generation
+- API documentation
+- Usage examples
+- Best practices guide
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e7_5_discovery_documentation/
+```
+
+---
+
+## 8. CLI & UX Skills
+
+### 8.1 error-handling (e8_1)
+
+**Type:** Error Handling Skill
+**Agent:** CLI
+**Category:** cli
+**Epic:** E8 - CLI & User Experience
+
+**Purpose:** Comprehensive error handling and recovery
+
+**Capabilities:**
+- Error categorization
+- User-friendly error messages
+- Recovery suggestions
+- Error code reference
+
+**Error Categories:**
+- **VALIDATION_ERROR:** Invalid input
+- **FILE_NOT_FOUND:** Missing file
+- **PERMISSION_ERROR:** Access denied
+- **NETWORK_ERROR:** Connection issues
+- **AGENT_ERROR:** Agent failure
+
+**Usage Example:**
+```python
+from skills.builtins.e8_1_error_handling import ErrorHandler
+
+handler = ErrorHandler()
+
+try:
+    await execute_task()
+except Exception as e:
+    error = handler.handle_error(e)
+    print(error.message)
+    print(error.suggestion)
+    print(error.documentation_link)
+```
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e8_1_error_handling/
+```
+
+---
+
+### 8.2 interactive-prompts (e8_2)
+
+**Type:** Interaction Skill
+**Agent:** CLI
+**Category:** cli
+**Epic:** E8 - CLI & User Experience
+
+**Purpose:** Interactive user prompts for CLI
+
+**Capabilities:**
+- Text input prompts
+- Confirmation prompts
+- Selection prompts
+- Multi-select prompts
+
+**Prompt Types:**
+```python
+from skills.builtins.e8_2_interactive_prompts import Prompts
+
+prompts = Prompts()
+
+# Text input
+name = await prompts.text("Enter project name:", default="my-tests")
+
+# Confirmation
+confirm = await prompts.confirm("Continue?", default=True)
+
+# Selection
+choice = await prompts.select(
+    "Choose framework:",
+    options=["behave", "pytest-bdd"],
+    default="behave"
+)
+
+# Multi-select
+tags = await prompts.multiselect(
+    "Select tags:",
+    options=["@smoke", "@regression", "@api"],
+    default=["@smoke"]
+)
+```
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e8_2_interactive_prompts/
+```
+
+---
+
+### 8.3 cli-help (e8_3)
+
+**Type:** Help Skill
+**Agent:** CLI
+**Category:** cli
+**Epic:** E8 - CLI & User Experience
+
+**Purpose:** Comprehensive help system for CLI
+
+**Capabilities:**
+- Command documentation
+- Usage examples
+- Parameter reference
+- Troubleshooting guide
+
+**Help Topics:**
+- Command reference
+- Configuration options
+- Environment variables
+- Common issues
+- Best practices
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e8_3_cli_help/
+```
+
+---
+
+### 8.4 progress-feedback (e8_4)
+
+**Type:** Feedback Skill
+**Agent:** CLI
+**Category:** cli
+**Epic:** E8 - CLI & User Experience
+
+**Purpose:** Progress indicators and user feedback
+
+**Capabilities:**
+- Progress bars
+- Spinners
+- Status updates
+- Completion summaries
+
+**Feedback Types:**
+```python
+from skills.builtins.e8_4_progress_feedback import Progress
+
+progress = Progress()
+
+# Progress bar
+with progress.bar("Processing files", total=100) as bar:
+    for i in range(100):
+        # Process file
+        bar.advance()
+
+# Spinner
+with progress.spinner("Loading..."):
+    await load_data()
+
+# Status update
+progress.status("Running tests...")
+```
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e8_4_progress_feedback/
+```
+
+---
+
+### 8.5 migration-tools (e8_5)
+
+**Type:** Migration Skill
+**Agent:** CLI
+**Category:** cli
+**Epic:** E8 - CLI & User Experience
+
+**Purpose:** Tools for migrating between framework versions
+
+**Capabilities:**
+- Version detection
+- Configuration migration
+- Code transformation
+- Rollback support
+
+**Migration Features:**
+- Backup creation
+- Incremental migration
+- Validation checks
+- Migration reports
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e8_5_migration_tools/
+```
+
+---
+
+## 9. Execution & Reporting Skills
+
+### 9.1 parallel-execution (e9_1)
+
+**Type:** Execution Skill
+**Agent:** Execution Agent
+**Category:** execution
+**Epic:** E9 - Advanced Execution
+
+**Purpose:** Parallel test execution with resource management
+
+**Capabilities:**
+- Multi-worker execution
+- Load balancing
+- Resource isolation
+- Synchronization
+
+**Execution Modes:**
+- **Parallel:** Run tests simultaneously
+- **Sharded:** Split tests across workers
+- **Distributed:** Run across multiple machines
+
+**Configuration:**
+```yaml
+parallel_execution:
+  enabled: true
+  max_workers: 4
+  worker_timeout: 300
+  isolation: "context"
+  load_balancing: "round_robin"
+```
+
+**Usage Example:**
+```bash
+# Run with 4 parallel workers
+cpa run --parallel 4
+
+# Shard tests across 2 workers
+cpa run --shard 2/4
+
+# Run on distributed machines
+cpa run --distributed --workers 8
+```
+
+**Benefits:**
+- Faster test execution
+- Better resource utilization
+- Scalability
+- Fault tolerance
+
+**Dependencies:**
+- e1_2_state_management
+- e2_1_agent_lifecycle
+- e5_4_scenario_optimization
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e9_1_parallel_execution/
+├── __init__.py
+├── main.py
+└── skill.yaml
+```
+
+---
+
+### 9.2 cicd-integration (e9_2)
+
+**Type:** Integration Skill
+**Agent:** Execution Agent
+**Category:** execution
+**Epic:** E9 - Advanced Execution
+
+**Purpose:** CI/CD pipeline integration
+
+**Capabilities:**
+- GitHub Actions support
+- GitLab CI support
+- Jenkins support
+- Azure DevOps support
+
+**CI/CD Features:**
+- Automatic test execution
+- Result reporting
+- Artifact collection
+- Status notifications
+
+**Configuration Examples:**
+
+**GitHub Actions:**
+```yaml
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run tests
+        run: |
+          cpa install
+          cpa run --parallel 4
+```
+
+**GitLab CI:**
+```yaml
+test:
+  script:
+    - pip install claude-playwright-agent
+    - cpa run
+  artifacts:
+    when: always
+    paths:
+      - reports/
+```
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e9_2_cicd_integration/
+```
+
+---
+
+### 9.3 test-reporting (e9_3)
+
+**Type:** Reporting Skill
+**Agent:** Execution Agent
+**Category:** execution
+**Epic:** E9 - Advanced Execution
+
+**Purpose:** Comprehensive test reporting
+
+**Capabilities:**
+- HTML reports
+- JSON reports
+- JUnit XML reports
+- Console summaries
+
+**Report Formats:**
+
+**HTML Report:**
+- Interactive dashboard
+- Screenshots and videos
+- Timeline visualization
+- Failure analysis
+
+**JSON Report:**
+```json
+{
+  "summary": {
+    "total": 100,
+    "passed": 95,
+    "failed": 5,
+    "skipped": 0
+  },
+  "tests": [...],
+  "failures": [...]
+}
+```
+
+**JUnit XML:**
+```xml
+<testsuites>
+  <testsuite name="login" tests="5" failures="0">
+    <testcase name="valid login" status="passed"/>
+  </testsuite>
+</testsuites>
+```
+
+**Configuration:**
+```yaml
+test_reporting:
+  enabled: true
+  formats: ["html", "json", "junit"]
+  output_dir: "reports"
+  include_screenshots: true
+  include_videos: true
+```
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e9_3_test_reporting/
+```
+
+---
+
+### 9.4 api-validation (e9_4)
+
+**Type:** Validation Skill
+**Agent:** Execution Agent
+**Category:** execution
+**Epic:** E9 - Advanced Execution
+
+**Purpose:** API validation and testing
+
+**Capabilities:**
+- Request/response validation
+- Schema validation
+- Contract testing
+- Performance testing
+
+**Validation Types:**
+- **Status Code:** Verify HTTP status
+- **Headers:** Validate response headers
+- **Body:** Validate response body
+- **Schema:** JSON schema validation
+- **Contract:** API contract compliance
+
+**Usage Example:**
+```python
+from skills.builtins.e9_4_api_validation import APIValidator
+
+validator = APIValidator()
+
+# Validate API response
+response = await page.request.get("/api/users")
+result = validator.validate_response(
+    response,
+    expected_status=200,
+    expected_schema=user_list_schema
+)
+
+assert result.valid, result.errors
+```
+
+**Configuration:**
+```yaml
+api_validation:
+  enabled: true
+  validate_status_codes: true
+  validate_schema: true
+  validate_contract: true
+  performance_threshold_ms: 1000
+```
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e9_4_api_validation/
+```
+
+---
+
+### 9.5 performance-monitoring (e9_5)
+
+**Type:** Monitoring Skill
+**Agent:** Execution Agent
+**Category:** execution
+**Epic:** E9 - Advanced Execution
+
+**Purpose:** Real-time performance monitoring during test execution
+
+**Capabilities:**
+- Resource usage tracking
+- Response time monitoring
+- Bottleneck identification
+- Performance trends
+
+**Monitored Metrics:**
+- CPU usage per test
+- Memory usage per test
+- Network I/O
+- Test execution time
+- API response times
+
+**Performance Reports:**
+```json
+{
+  "summary": {
+    "avg_cpu_percent": 45,
+    "avg_memory_mb": 512,
+    "avg_execution_time_ms": 2500
+  },
+  "slow_tests": [
+    {"name": "test_login", "time_ms": 5000}
+  ],
+  "resource_hogs": [
+    {"name": "test_upload", "memory_mb": 1024}
+  ]
+}
+```
+
+**Configuration:**
+```yaml
+performance_monitoring:
+  enabled: true
+  sampling_interval_ms: 100
+  alert_thresholds:
+    cpu_percent: 80
+    memory_mb: 1024
+    execution_time_ms: 10000
+```
+
+**Benefits:**
+- Identify slow tests
+- Detect resource leaks
+- Optimize test performance
+- Capacity planning
+
+**Dependencies:**
+- e1_2_state_management
+- e6_4_performance_recording
+- e9_3_test_reporting
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e9_5_performance_monitoring/
+├── __init__.py
+├── main.py
+└── skill.yaml
+```
+
+---
+
 ## 6. Analysis Agent Skills
 
 ### 6.1 failure-clustering

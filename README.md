@@ -22,7 +22,7 @@ Claude Playwright Agent is a sophisticated test automation framework that levera
 - **🔄 Multi-Agent:** 6 specialized agents orchestrate test automation
 - **🎭 Deduplication:** Smart element reuse across recordings
 - **⚙️ Configurable:** 5 production-ready profiles (dev, test, prod, ci)
-- **📊 Comprehensive:** 45 built-in skills across 9 epics
+- **📊 Comprehensive:** 46 built-in skills across 9 epics
 - **🧪 BDD Framework:** Support for Behave and pytest-bdd
 
 ---
@@ -53,7 +53,7 @@ Complete POM implementation out of the box:
 - **Business language** methods
 - **Navigation flow** support
 
-### 🎯 45 Built-in Skills
+### 🎯 46 Built-in Skills
 Across 9 epics:
 1. **Project Management** - Init, state, config, context
 2. **Recording** - Advanced, network, visual regression
@@ -147,7 +147,7 @@ open reports/index.html
 | Document | Description |
 |----------|-------------|
 | **[FRAMEWORK_ARCHITECTURE.md](FRAMEWORK_ARCHITECTURE.md)** | Complete architecture overview |
-| **[SKILLS_CATALOG.md](SKILLS_CATALOG.md)** | All 45 skills reference |
+| **[SKILLS_CATALOG.md](SKILLS_CATALOG.md)** | All 46 skills reference |
 | **[REQUIREMENTS.md](REQUIREMENTS.md)** | Project requirements |
 | **[CHANGELOG.md](CHANGELOG.md)** | Version history |
 
@@ -468,7 +468,7 @@ tests/
 - **Test Coverage:** Target 80%+
 - **Documentation:** 4 comprehensive guides
 - **Configuration Profiles:** 5 production-ready
-- **Built-in Skills:** 45 across 9 epics
+- **Built-in Skills:** 46 across 9 epics
 - **Agents:** 6 specialized agents
 - **Page Objects:** 1 BasePage + 3 examples
 
