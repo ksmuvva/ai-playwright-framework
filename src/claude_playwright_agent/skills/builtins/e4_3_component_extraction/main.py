@@ -20,6 +20,7 @@ from claude_playwright_agent.agents.base import BaseAgent
 class ComponentType(str, Enum):
     """Types of reusable components."""
 
+    # Generic types (original)
     FORM = "form"
     NAVIGATION = "navigation"
     BUTTON_GROUP = "button_group"
@@ -29,6 +30,20 @@ class ComponentType(str, Enum):
     CARD = "card"
     INPUT_GROUP = "input_group"
     GENERIC = "generic"
+
+    # Specific component types (enhanced)
+    LOGIN_FORM = "login_form"
+    SEARCH_BOX = "search_box"
+    DROPDOWN = "dropdown"
+    DATE_PICKER = "date_picker"
+    FILE_UPLOAD = "file_upload"
+    PAGINATION = "pagination"
+    BREADCRUMB = "breadcrumb"
+    DATA_TABLE = "data_table"
+    ACCORDION = "accordion"
+    TABS = "tabs"
+    CAROUSEL = "carousel"
+    PROGRESS_BAR = "progress_bar"
 
 
 @dataclass
@@ -405,11 +420,64 @@ class ComponentExtractionAgent(BaseAgent):
 
         # Count element types
         action_types = [e.get("action_type", "") for e in elements]
+        selectors = [e.get("selector", {}).get("raw", "") for e in elements]
 
-        # Form detection (multiple inputs)
+        # Count various patterns
         input_count = sum(1 for t in action_types if "fill" in t.lower() or "input" in t.lower())
         click_count = sum(1 for t in action_types if "click" in t.lower())
+        select_count = sum(1 for s in selectors for tag in ["select", "dropdown"] if tag in s.lower())
 
+        # Check for specific component patterns
+
+        # LOGIN_FORM: username + password fields
+        if self._has_login_pattern(selectors):
+            return ComponentType.LOGIN_FORM
+
+        # SEARCH_BOX: search input + search button
+        if self._has_search_pattern(selectors):
+            return ComponentType.SEARCH_BOX
+
+        # DROPDOWN: select elements or dropdown components
+        if select_count > 0 and "select" in " ".join(selectors).lower():
+            return ComponentType.DROPDOWN
+
+        # DATE_PICKER: date input or calendar widget
+        if self._has_date_pattern(selectors):
+            return ComponentType.DATE_PICKER
+
+        # FILE_UPLOAD: file input
+        if self._has_file_upload_pattern(selectors):
+            return ComponentType.FILE_UPLOAD
+
+        # PAGINATION: next/prev buttons or page numbers
+        if self._has_pagination_pattern(selectors):
+            return ComponentType.PAGINATION
+
+        # BREADCRUMB: breadcrumb navigation
+        if self._has_breadcrumb_pattern(selectors):
+            return ComponentType.BREADCRUMB
+
+        # DATA_TABLE: table with multiple rows and data
+        if self._has_data_table_pattern(selectors):
+            return ComponentType.DATA_TABLE
+
+        # ACCORDION: collapsible sections
+        if self._has_accordion_pattern(selectors):
+            return ComponentType.ACCORDION
+
+        # TABS: tab navigation
+        if self._has_tabs_pattern(selectors):
+            return ComponentType.TABS
+
+        # CAROUSEL: sliding content
+        if self._has_carousel_pattern(selectors):
+            return ComponentType.CAROUSEL
+
+        # PROGRESS_BAR: progress indicator
+        if self._has_progress_bar_pattern(selectors):
+            return ComponentType.PROGRESS_BAR
+
+        # Form detection (multiple inputs)
         if input_count >= 2 and click_count >= 1:
             return ComponentType.FORM
 
@@ -426,6 +494,88 @@ class ComponentExtractionAgent(BaseAgent):
             return ComponentType.INPUT_GROUP
 
         return ComponentType.GENERIC
+
+    def _has_login_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match login form pattern."""
+        selector_text = " ".join(selectors).lower()
+        return (
+            ("username" in selector_text or "user" in selector_text or "email" in selector_text) and
+            ("password" in selector_text or "pass" in selector_text) and
+            ("login" in selector_text or "signin" in selector_text or "sign-in" in selector_text)
+        )
+
+    def _has_search_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match search box pattern."""
+        selector_text = " ".join(selectors).lower()
+        return (
+            "search" in selector_text and
+            ("input" in selector_text or "textfield" in selector_text) and
+            any(word in selector_text for word in ["button", "icon", "submit"])
+        )
+
+    def _has_date_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match date picker pattern."""
+        selector_text = " ".join(selectors).lower()
+        return (
+            "date" in selector_text or "calendar" in selector_text or
+            "datepicker" in selector_text or "date-picker" in selector_text
+        )
+
+    def _has_file_upload_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match file upload pattern."""
+        selector_text = " ".join(selectors).lower()
+        return "file" in selector_text and "upload" in selector_text
+
+    def _has_pagination_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match pagination pattern."""
+        selector_text = " ".join(selectors).lower()
+        return (
+            any(word in selector_text for word in ["pagination", "paging", "pager"]) or
+            ("next" in selector_text and "prev" in selector_text) or
+            ("page" in selector_text and any(str(i) in selector_text for i in range(1, 10)))
+        )
+
+    def _has_breadcrumb_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match breadcrumb pattern."""
+        selector_text = " ".join(selectors).lower()
+        return "breadcrumb" in selector_text or "breadcrumb" in selector_text
+
+    def _has_data_table_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match data table pattern."""
+        selector_text = " ".join(selectors).lower()
+        return (
+            "table" in selector_text and
+            any(word in selector_text for word in ["thead", "tbody", "row", "column", "cell"])
+        )
+
+    def _has_accordion_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match accordion pattern."""
+        selector_text = " ".join(selectors).lower()
+        return "accordion" in selector_text or "collapse" in selector_text
+
+    def _has_tabs_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match tabs pattern."""
+        selector_text = " ".join(selectors).lower()
+        return (
+            any(word in selector_text for word in ["tab", "tabs", "tabpanel"]) and
+            "active" in selector_text
+        )
+
+    def _has_carousel_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match carousel pattern."""
+        selector_text = " ".join(selectors).lower()
+        return (
+            any(word in selector_text for word in ["carousel", "slider", "slideshow"]) and
+            any(word in selector_text for word in ["next", "prev", "arrow", "dot"])
+        )
+
+    def _has_progress_bar_pattern(self, selectors: list[str]) -> bool:
+        """Check if selectors match progress bar pattern."""
+        selector_text = " ".join(selectors).lower()
+        return (
+            any(word in selector_text for word in ["progress", "progressbar", "progress-bar"]) and
+            any(word in selector_text for word in ["bar", "fill", "value", "percent"])
+        )
 
     def _group_action_sequences(self, actions: list[dict[str, Any]]) -> list[list[str]]:
         """Group consecutive action sequences."""
