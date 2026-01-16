@@ -1,0 +1,49 @@
+name: e10_1_memory_manager
+version: 1.0.0
+description: E10.1 - Memory Management System. Multi-layered memory for AI agents with short-term, long-term, semantic, and episodic memory capabilities.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies:
+  - sqlite3
+  - json
+  - pickle
+  - hashlib
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e2_1_orchestrator_core
+
+# Tags for categorization
+tags:
+  - memory
+  - ai
+  - knowledge
+  - persistence
+  - e10
+
+# Capabilities
+capabilities:
+  - short_term_memory
+  - long_term_memory
+  - semantic_memory
+  - episodic_memory
+  - memory_retrieval
+  - memory_consolidation
+  - context_awareness
+  - pattern_learning
+
+# Settings
+settings:
+  enabled: true
+  max_short_term_entries: 1000
+  max_long_term_entries: 10000
+  persist_to_disk: true
+  memory_db_path: ".cpa/memory.db"
+  consolidation_interval: 3600
+  retrieval_threshold: 0.7

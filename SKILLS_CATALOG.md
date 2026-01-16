@@ -20,6 +20,7 @@
 5. [Execution Agent Skills](#5-execution-agent-skills)
 6. [Analysis Agent Skills](#6-analysis-agent-skills)
 7. [Custom Skills](#7-custom-skills)
+8. [Memory & AI Skills](#8-memory--ai-skills)
 
 ---
 
@@ -2558,5 +2559,270 @@ src/claude_playwright_agent/skills/builtins/e9_5_performance_monitoring/
 
 ---
 
-**Document Version:** 2.0
-**Last Updated:** 2025-01-11
+## 8. Memory & AI Skills
+
+### 8.1 memory-manager (e10_1)
+
+**Type:** Memory Skill
+**Agent:** System
+**Category:** memory
+**Epic:** E10 - AI Memory & Learning
+
+**Purpose:** Multi-layered memory system for AI agents to remember, learn, and recall information
+
+**Capabilities:**
+- Short-term memory: Session-based working memory (ephemeral, fast access)
+- Long-term memory: Persistent knowledge across sessions (disk-backed)
+- Semantic memory: Concepts, patterns, and general knowledge
+- Episodic memory: Specific events and test executions
+- Working memory: Current task context (very fast, very limited)
+- Memory consolidation: Automatic promotion of important memories
+- Memory retrieval: Search by key, tags, context, or similarity
+- Memory expiration: TTL-based automatic cleanup
+
+**Memory Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Memory Manager                        │
+├─────────────────────────────────────────────────────────┤
+│                                                           │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │ Working      │  │ Short-Term   │  │ Long-Term    │  │
+│  │ Memory       │  │ Memory       │  │ Memory       │  │
+│  │              │  │              │  │              │  │
+│  │ • ~50 items  │  │ • 1000 items │  │ • 10000+     │  │
+│  │ • Very fast  │  │ • Fast       │  │ • Persistent  │  │
+│  │ • LRU evict  │  │ • Priority   │  │ • Disk-backed │  │
+│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│                                                           │
+│  ┌──────────────┐  ┌──────────────┐                     │
+│  │ Semantic     │  │ Episodic     │                     │
+│  │ Memory       │  │ Memory       │                     │
+│  │              │  │              │                     │
+│  │ • Concepts   │  │ • Events     │                     │
+│  │ • Patterns   │  │ • History    │                     │
+│  │ • Knowledge  │  │ • Timeline   │                     │
+│  └──────────────┘  └──────────────┘                     │
+│                                                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+**MemoryEntry Structure:**
+```python
+@dataclass
+class MemoryEntry:
+    id: str                          # Unique identifier
+    type: MemoryType                  # short_term, long_term, etc.
+    priority: MemoryPriority          # critical, high, medium, low
+    key: str                          # Unique key for retrieval
+    value: Any                        # The stored data
+    context: Dict[str, Any]           # Additional context
+    metadata: Dict[str, Any]          # Optional metadata
+    created_at: str                   # Creation timestamp
+    accessed_at: str                  # Last access timestamp
+    access_count: int                 # Number of accesses
+    tags: List[str]                   # Searchable tags
+    expires_at: Optional[str]         # Optional expiration
+    associated_memories: List[str]    # Related memories
+```
+
+**Usage Examples:**
+
+**Example 1: Remember test execution**
+```python
+from skills.builtins.e10_1_memory_manager import (
+    MemoryManager,
+    MemoryType,
+    MemoryPriority,
+    remember_test_execution
+)
+
+manager = MemoryManager(persist_to_disk=True)
+
+# Store test execution in episodic memory
+await remember_test_execution(
+    manager,
+    test_name="login_test",
+    outcome="passed",
+    duration_ms=1500,
+    context={"browser": "chromium", "env": "staging"}
+)
+```
+
+**Example 2: Remember selector healing**
+```python
+from skills.builtins.e10_1_memory_manager import remember_selector_failure
+
+# Store successful healing attempt
+await remember_selector_failure(
+    manager,
+    selector="#submit-btn",
+    page_url="https://example.com/login",
+    healing_strategy="data-testid_fallback",
+    success=True
+)
+
+# Later, recall similar failures
+similar = await recall_similar_failures(manager, "#submit-btn")
+```
+
+**Example 3: Store and retrieve memories**
+```python
+# Store in short-term memory
+await manager.store(
+    key="current_page",
+    value={"url": "https://example.com", "title": "Home"},
+    type=MemoryType.SHORT_TERM,
+    tags=["navigation", "page"],
+    ttl=3600  # Expire after 1 hour
+)
+
+# Retrieve by key
+memory = await manager.retrieve("current_page")
+print(memory.value)  # {"url": "https://example.com", ...}
+```
+
+**Example 4: Search memories**
+```python
+from skills.builtins.e10_1_memory_manager import MemoryQuery
+
+# Search by tags
+query = MemoryQuery(
+    tags=["test_execution", "failed"],
+    limit=10
+)
+failed_tests = await manager.search(query)
+
+# Search by time range
+from datetime import datetime, timedelta
+query = MemoryQuery(
+    type=MemoryType.EPISODIC,
+    time_range=(
+        datetime.now() - timedelta(days=7),
+        datetime.now()
+    )
+)
+recent_tests = await manager.search(query)
+```
+
+**Example 5: Memory consolidation**
+```python
+# Consolidate important short-term memories to long-term
+consolidated_count = await manager.consolidate()
+print(f"Consolidated {consolidated_count} memories")
+
+# Automatic consolidation based on:
+# - Priority (HIGH/CRITICAL)
+# - Access frequency (> 5 times)
+# - Not expired
+```
+
+**Configuration:**
+```yaml
+memory_manager:
+  enabled: true
+  max_short_term_entries: 1000
+  max_long_term_entries: 10000
+  persist_to_disk: true
+  memory_db_path: ".cpa/memory.db"
+  consolidation_interval: 3600  # 1 hour
+  retrieval_threshold: 0.7
+```
+
+**Memory Types:**
+
+| Type | Capacity | Speed | Persistence | Use Case |
+|------|----------|-------|-------------|----------|
+| **Working** | ~50 items | Very fast | No | Current task context |
+| **Short-term** | 1000 items | Fast | No | Session data |
+| **Long-term** | 10000+ items | Medium | Yes | Important knowledge |
+| **Semantic** | Unlimited | Medium | Yes | Concepts/patterns |
+| **Episodic** | Unlimited | Medium | Yes | Events/history |
+
+**Priority Levels:**
+- **CRITICAL**: Must remember (important failures, critical learnings)
+- **HIGH**: Important (successful strategies, common patterns)
+- **MEDIUM**: Normal (test results, routine operations)
+- **LOW**: Optional (debug info, temporary data)
+
+**Advanced Features:**
+
+**Memory Expiration:**
+```python
+# Store with TTL (time-to-live)
+await manager.store(
+    key="temp_data",
+    value=data,
+    ttl=3600  # Expires after 1 hour
+)
+
+# Clear all expired memories
+expired_count = await manager.clear_expired()
+```
+
+**Memory Associations:**
+```python
+# Store related memories
+memory1 = await manager.store(key="test1", value=...)
+memory2 = await manager.store(key="test2", value=...)
+
+# Associate them
+memory1.associate(memory2.id)
+```
+
+**Export/Import:**
+```python
+# Export memories to JSON
+count = await manager.export_memories(
+    output_path="backup/memories.json",
+    type=MemoryType.EPISODIC
+)
+
+# Import memories
+imported = await manager.import_memories("backup/memories.json")
+```
+
+**Statistics:**
+```python
+stats = manager.get_statistics()
+print(f"Total memories: {stats['total_memories']}")
+print(f"Short-term: {stats['short_term_capacity']}")
+print(f"Total retrievals: {stats['total_retrievals']}")
+print(f"Consolidations: {stats['consolidations']}")
+```
+
+**Use Cases:**
+
+1. **Test History**: Remember all test executions and outcomes
+2. **Selector Learning**: Learn which healing strategies work best
+3. **Pattern Recognition**: Identify recurring failure patterns
+4. **Performance Optimization**: Track slow tests and optimizations
+5. **Context Awareness**: Maintain context across long workflows
+6. **Smart Suggestions**: Suggest fixes based on past successes
+
+**Benefits:**
+- ✅ **Persistent Learning**: Agent learns from experience
+- ✅ **Faster Recovery**: Recall successful fixes quickly
+- ✅ **Pattern Detection**: Identify trends over time
+- ✅ **Context Awareness**: Remember previous steps
+- ✅ **Smart Suggestions**: AI-powered recommendations
+- ✅ **Memory Consolidation**: Automatic knowledge management
+
+**Dependencies:**
+- e1_2_state_management
+- e2_1_orchestrator_core
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e10_1_memory_manager/
+├── __init__.py
+├── main.py (1000+ lines)
+└── skill.yaml
+```
+
+---
+
+**Document Version:** 2.1
+**Last Updated:** 2025-01-16
+**Total Skills:** 47 (46 previously documented + 1 new memory skill)
