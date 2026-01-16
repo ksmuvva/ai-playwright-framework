@@ -1,5 +1,48 @@
-playwright>=1.40.0
-click>=8.0.0
-rich>=13.0.0
-pydantic>=2.0.0
+# AI Playwright Framework - Production Requirements
+
+# Core dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-xdist>=3.5.0
+
+# BDD frameworks
 behave>=1.2.6
+pytest-bdd>=7.0.0
+
+# Playwright
+playwright>=1.40.0
+
+# Async support
+asyncio>=3.4.3
+aiofiles>=23.0.0
+
+# Data processing
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+
+# HTTP requests
+requests>=2.31.0
+httpx>=0.25.0
+
+# Logging
+structlog>=23.2.0
+colorlog>=6.8.0
+
+# Memory database
+sqlalchemy>=2.0.0
+aiosqlite>=0.19.0
+
+# Reporting
+jinja2>=3.1.2
+matplotlib>=3.8.0
+plotly>=5.18.0
+
+# CLI
+click>=8.1.0
+rich>=13.7.0
+typer>=0.9.0
+
+# Utilities
+python-dateutil>=2.8.2
+pytz>=2023.3
