@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Awaitable
+from typing import Any, Callable, Awaitable, Optional
 
 from claude_playwright_agent.agents.base import BaseAgent
 from claude_playwright_agent.agents.priority_messaging import (
@@ -143,6 +143,37 @@ class AgentTask:
             "result": self.result,
             "error": self.error,
         }
+
+
+# =============================================================================
+# Workflow Definitions
+# =============================================================================
+
+
+@dataclass
+class Stage:
+    """
+    A single stage in a multi-agent workflow.
+
+    Attributes:
+        name: Stage name
+        agent_type: Type of agent to run for this stage
+        config: Configuration for the agent
+    """
+    name: str
+    agent_type: str
+    config: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class Workflow:
+    """
+    A multi-agent workflow definition.
+
+    Attributes:
+        stages: List of stages to execute in sequence
+    """
+    stages: list[Stage] = field(default_factory=list)
 
 
 # =============================================================================
@@ -1050,6 +1081,142 @@ Always track the status of each task and agent, and provide clear status updates
                 "status": status.value if status else "unknown",
             })
         return agents
+
+    async def run_workflow(self, workflow_type: str, input_data: dict) -> dict:
+        """
+        Execute a multi-agent workflow with coordinated stages.
+
+        Args:
+            workflow_type: Type of workflow to run (ingestion, execution, etc.)
+            input_data: Input data for the workflow
+
+        Returns:
+            Workflow results
+
+        Example:
+            >>> result = await orchestrator.run_workflow("ingestion", {
+            ...     "recording_path": "recordings/test.spec.js"
+            ... })
+        """
+        workflow = self._get_workflow(workflow_type)
+
+        if not workflow:
+            return {"error": f"Unknown workflow type: {workflow_type}"}
+
+        logger.info(f"Starting workflow: {workflow_type} with {len(workflow.stages)} stages")
+
+        results = {}
+        current_data = input_data
+
+        try:
+            for stage in workflow.stages:
+                logger.info(f"Executing stage: {stage.name}")
+
+                # Spawn agent for this stage
+                agent_instance = await self._lifecycle.spawn_agent(
+                    agent_type=stage.agent_type,
+                    config=stage.config or {}
+                )
+
+                # Publish stage start event
+                await self._event_bus.publish(AgentEvent(
+                    type=EventType.WORKFLOW_STAGE_START,
+                    agent_id=self.agent_id,
+                    data={
+                        "workflow": workflow_type,
+                        "stage": stage.name,
+                        "agent": agent_instance.agent_id
+                    }
+                ))
+
+                # Execute stage using the agent
+                try:
+                    if hasattr(agent_instance.agent, 'process'):
+                        stage_result = await agent_instance.agent.process(current_data)
+                    elif hasattr(agent_instance.agent, 'run'):
+                        stage_result = await agent_instance.agent.run(current_data)
+                    else:
+                        raise AttributeError(f"Agent {stage.agent_type} has no process or run method")
+
+                    results[stage.name] = stage_result
+
+                    # Pass result to next stage
+                    current_data = stage_result
+
+                    logger.info(f"Stage {stage.name} completed successfully")
+
+                except Exception as e:
+                    logger.error(f"Stage {stage.name} failed: {e}")
+                    await self._event_bus.publish(AgentEvent(
+                        type=EventType.WORKFLOW_STAGE_ERROR,
+                        agent_id=self.agent_id,
+                        data={
+                            "workflow": workflow_type,
+                            "stage": stage.name,
+                            "error": str(e)
+                        }
+                    ))
+                    raise
+
+                # Cleanup agent after stage completes
+                await self._lifecycle.stop_agent(agent_instance.agent_id)
+
+            # Publish workflow completion event
+            await self._event_bus.publish(AgentEvent(
+                type=EventType.WORKFLOW_COMPLETE,
+                agent_id=self.agent_id,
+                data={
+                    "workflow": workflow_type,
+                    "results": results
+                }
+            ))
+
+            return {
+                "workflow": workflow_type,
+                "status": "completed",
+                "results": results,
+                "final_data": current_data
+            }
+
+        except Exception as e:
+            logger.error(f"Workflow {workflow_type} failed: {e}")
+            return {
+                "workflow": workflow_type,
+                "status": "failed",
+                "error": str(e),
+                "results": results
+            }
+
+    def _get_workflow(self, workflow_type: str) -> Optional["Workflow"]:
+        """
+        Get workflow definition by type.
+
+        Args:
+            workflow_type: Type of workflow
+
+        Returns:
+            Workflow definition or None
+        """
+        workflows = {
+            "ingestion": Workflow([
+                Stage("ingestion", "IngestionAgent", {}),
+                Stage("deduplication", "DeduplicationAgent", {}),
+                Stage("bdd_conversion", "BDDConversionAgent", {}),
+            ]),
+            "execution": Workflow([
+                Stage("execution", "ExecutionAgent", {}),
+                Stage("analysis", "AnalysisAgent", {}),
+            ]),
+            "full": Workflow([
+                Stage("ingestion", "IngestionAgent", {}),
+                Stage("deduplication", "DeduplicationAgent", {}),
+                Stage("bdd_conversion", "BDDConversionAgent", {}),
+                Stage("execution", "ExecutionAgent", {}),
+                Stage("analysis", "AnalysisAgent", {}),
+            ]),
+        }
+
+        return workflows.get(workflow_type)
 
     async def shutdown(self) -> None:
         """Shutdown the orchestrator and all agents."""
