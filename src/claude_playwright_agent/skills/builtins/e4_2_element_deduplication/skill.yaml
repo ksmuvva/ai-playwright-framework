@@ -1,0 +1,36 @@
+name: e4_2_element_deduplication
+version: 1.0.0
+description: E4.2 - Element Deduplication Logic. Core element matching and grouping logic with full context preservation across element lifecycles.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e4_1_deduplication_agent
+
+# Tags for categorization
+tags:
+  - deduplication
+  - element_matching
+  - grouping
+  - e4
+
+# Capabilities
+capabilities:
+  - element_matching
+  - similarity_scoring
+  - element_grouping
+  - context_tracking
+
+# Settings
+settings:
+  enabled: true
+  similarity_threshold: 0.8
+  grouping_strategy: similarity

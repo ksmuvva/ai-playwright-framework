@@ -1,0 +1,38 @@
+name: e8_2_interactive_prompts
+version: 1.0.0
+description: E8.2 - Interactive Prompts & User Input. Provides interactive CLI prompts, confirmation dialogs, multi-step wizards, and rich user input handling with full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies:
+  - questionary
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e8_1_error_handling
+
+# Tags for categorization
+tags:
+  - interactive
+  - prompts
+  - user-input
+  - wizards
+  - e8
+
+# Capabilities
+capabilities:
+  - interactive_prompts
+  - confirmation_dialogs
+  - multi_step_wizards
+  - rich_input
+
+# Settings
+settings:
+  enabled: true
+  use_defaults: true
+  show_hints: true

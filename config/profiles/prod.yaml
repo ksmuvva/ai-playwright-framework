@@ -1,0 +1,51 @@
+# Production Profile
+# Optimized for production test runs with minimal overhead
+
+# Inherits from config/default/config.yaml and overrides specific settings
+
+browser:
+  headless: true
+  devtools: false
+  slow_mo: 0
+
+logging:
+  level: WARNING  # Only log warnings and errors
+  console: false  # Disable console output
+  json_format: true
+
+execution:
+  parallel_workers: 8  # Maximum parallelization
+  retry_failed: 1  # Single retry for failed tests
+  fail_fast: false
+
+ai:
+  temperature: 0.1  # Minimal creativity for consistent results
+  enable_caching: true
+
+self_healing:
+  enabled: true
+  log_attempts: false
+  max_attempts: 2  # Minimal healing attempts
+
+reporting:
+  format: junit  # JUnit format for production systems
+  include_screenshots: false  # Reduce storage overhead
+  include_ai_analysis: false  # Faster execution
+  include_timeline: false
+
+bdd:
+  generate_steps: true
+  include_tags: false  # Simplified output
+
+recording:
+  generate_page_objects: false  # Don't auto-generate in production
+  deduplicate_elements: false
+
+# State management
+state:
+  auto_save: false  # Disable auto-save for performance
+  backup: false
+
+# Production timeouts
+framework:
+  default_timeout: 15000  # Shorter timeouts

@@ -1,0 +1,36 @@
+name: e4_5_selector_catalog
+version: 1.0.0
+description: E4.5 - Selector Catalog Management. Manages selector catalog with full context tracking for selector lifecycles across the framework.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e4_1_deduplication_agent
+
+# Tags for categorization
+tags:
+  - deduplication
+  - catalog
+  - selectors
+  - e4
+
+# Capabilities
+capabilities:
+  - catalog_management
+  - selector_tracking
+  - version_control
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  auto_version: true
+  catalog_path: .selectors.json

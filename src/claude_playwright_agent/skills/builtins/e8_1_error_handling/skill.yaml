@@ -1,0 +1,36 @@
+name: e8_1_error_handling
+version: 1.0.0
+description: E8.1 - Comprehensive Error Handling. Provides error detection, classification, and recovery with full context tracking through error lifecycle.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e1_5_dependency_management
+
+# Tags for categorization
+tags:
+  - error-handling
+  - recovery
+  - diagnostics
+  - e8
+
+# Capabilities
+capabilities:
+  - error_detection
+  - error_classification
+  - error_recovery
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  max_retry_attempts: 3
+  recovery_timeout: 30

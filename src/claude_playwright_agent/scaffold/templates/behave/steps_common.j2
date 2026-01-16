@@ -1,0 +1,105 @@
+"""
+Common step definitions for {{ project_name }}.
+
+This module contains reusable step definitions that can be used
+across multiple feature files.
+"""
+
+from behave import given, when, then
+from playwright.sync_api import Page, expect
+
+# =============================================================================
+# Navigation Steps
+# =============================================================================
+
+
+@given('I am on the homepage')
+def step_given_on_homepage(context: Any) -> None:
+    """Navigate to the homepage."""
+    context.page.goto(context.base_url)
+    context.page.wait_for_load_state("networkidle")
+
+
+@given('I am on "{path}"')
+def step_given_on_path(context: Any, path: str) -> None:
+    """Navigate to a specific path."""
+    url = f"{context.base_url.rstrip('/')}/{path.lstrip('/')}"
+    context.page.goto(url)
+    context.page.wait_for_load_state("networkidle")
+
+
+@when('I click "{text}"')
+def step_when_click_text(context: Any, text: str) -> None:
+    """Click an element with the given text."""
+    context.page.get_by_text(text).click()
+
+
+@when('I click the "{selector}" element')
+def step_when_click_selector(context: Any, selector: str) -> None:
+    """Click an element matching the CSS selector."""
+    context.page.locator(selector).click()
+
+
+@then('I should see "{text}"')
+def step_then_should_see_text(context: Any, text: str) -> None:
+    """Verify that text is visible on the page."""
+    expect(context.page.get_by_text(text)).to_be_visible()
+
+
+@then('I should be on "{path}"')
+def step_then_should_be_on_path(context: Any, path: str) -> None:
+    """Verify the current URL path."""
+    expected = f"{context.base_url.rstrip('/')}/{path.lstrip('/')}"
+    expect(context.page).to_have_url(expected)
+
+
+@then('the "{selector}" element should be visible')
+def step_then_element_visible(context: Any, selector: str) -> None:
+    """Verify that an element is visible."""
+    expect(context.page.locator(selector)).to_be_visible()
+
+
+# =============================================================================
+# Form Steps
+# =============================================================================
+
+
+@when('I fill in "{field}" with "{value}"')
+def step_when_fill_field(context: Any, field: str, value: str) -> None:
+    """Fill in a form field."""
+    context.page.get_by_label(field).fill(value)
+
+
+@when('I select "{option}" from "{dropdown}"')
+def step_when_select_option(context: Any, option: str, dropdown: str) -> None:
+    """Select an option from a dropdown."""
+    context.page.get_by_label(dropdown).select_option(option)
+
+
+@when('I check "{checkbox}"')
+def step_when_check_checkbox(context: Any, checkbox: str) -> None:
+    """Check a checkbox."""
+    context.page.get_by_label(checkbox).check()
+
+
+@when('I uncheck "{checkbox}"')
+def step_when_uncheck_checkbox(context: Any, checkbox: str) -> None:
+    """Uncheck a checkbox."""
+    context.page.get_by_label(checkbox).uncheck()
+
+
+# =============================================================================
+# Wait Steps
+# =============================================================================
+
+
+@when('I wait for {n:d} seconds')
+def step_when_wait_seconds(context: Any, n: int) -> None:
+    """Wait for n seconds."""
+    context.page.wait_for_timeout(n * 1000)
+
+
+@when('I wait for the "{selector}" element to appear')
+def step_when_wait_for_element(context: Any, selector: str) -> None:
+    """Wait for an element to appear."""
+    context.page.wait_for_selector(selector)

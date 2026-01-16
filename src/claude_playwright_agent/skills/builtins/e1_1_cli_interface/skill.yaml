@@ -1,0 +1,36 @@
+name: e1_1_cli_interface
+version: 1.0.0
+description: E1.1 - CLI Interface & Command System. Provides comprehensive command-line interface for the framework.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies:
+  - click>=8.0.0
+  - rich>=13.0.0
+
+# Skill dependencies
+dependencies: []
+
+# Tags for categorization
+tags:
+  - framework
+  - cli
+  - e1
+  - foundation
+
+# Capabilities
+capabilities:
+  - command_registration
+  - command_execution
+  - help_system
+  - argument_parsing
+  - output_formatting
+
+# Settings
+settings:
+  enabled: true
+  verbose_output: false

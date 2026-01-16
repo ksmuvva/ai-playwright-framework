@@ -1,0 +1,36 @@
+name: e5_1_bdd_conversion
+version: 1.0.0
+description: E5.1 - BDD Conversion Agent. Converts Playwright recordings to BDD scenarios with full context tracking through conversion pipeline.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e3_2_playwright_parser
+
+# Tags for categorization
+tags:
+  - bdd
+  - conversion
+  - gherkin
+  - e5
+
+# Capabilities
+capabilities:
+  - bdd_conversion
+  - gherkin_generation
+  - scenario_creation
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  format: gherkin
+  include_step_definitions: true

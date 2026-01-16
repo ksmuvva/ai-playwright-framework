@@ -1,0 +1,36 @@
+name: e5_5_feature_management
+version: 1.0.0
+description: E5.5 - Feature File Management. Manages Gherkin feature files with full context tracking through file lifecycle.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e5_2_gherkin_generation
+
+# Tags for categorization
+tags:
+  - bdd
+  - feature_files
+  - file_management
+  - e5
+
+# Capabilities
+capabilities:
+  - feature_creation
+  - file_management
+  - version_control
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  default_extension: .feature
+  line_ending: lf

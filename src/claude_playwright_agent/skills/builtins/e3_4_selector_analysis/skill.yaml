@@ -1,0 +1,37 @@
+name: e3_4_selector_analysis
+version: 1.0.0
+description: E3.4 - Selector Analysis & Enhancement. Analyzes selector fragility and generates robust fallback selectors with context preservation.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e3_2_playwright_parser
+  - e3_3_action_extraction
+
+# Tags for categorization
+tags:
+  - ingestion
+  - selector
+  - analysis
+  - e3
+
+# Capabilities
+capabilities:
+  - selector_analysis
+  - fragility_scoring
+  - fallback_generation
+  - enhancement_suggestions
+  - context_tracking
+
+# Settings
+settings:
+  enabled: true
+  generate_fallbacks: true
+  analyze_aria: true

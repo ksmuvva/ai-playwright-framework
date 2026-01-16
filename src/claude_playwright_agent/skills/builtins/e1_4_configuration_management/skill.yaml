@@ -1,0 +1,34 @@
+name: e1_4_configuration_management
+version: 1.0.0
+description: E1.4 - Configuration Management. Provides profile-based configuration management for the framework.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies: []
+
+# Tags for categorization
+tags:
+  - framework
+  - configuration
+  - e1
+  - foundation
+
+# Capabilities
+capabilities:
+  - profile_management
+  - config_validation
+  - config_updates
+  - config_import_export
+  - environment_overrides
+
+# Settings
+settings:
+  enabled: true
+  default_profile: default

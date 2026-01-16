@@ -1,0 +1,38 @@
+name: e8_5_migration_tools
+version: 1.0.0
+description: E8.5 - Migration Tools. Provides migration capabilities for state, config, and data with full context tracking through migration lifecycle.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e1_3_config_management
+  - e8_1_error_handling
+
+# Tags for categorization
+tags:
+  - migration
+  - backup
+  - restore
+  - versioning
+  - e8
+
+# Capabilities
+capabilities:
+  - state_migration
+  - config_migration
+  - data_migration
+  - backup_restore
+
+# Settings
+settings:
+  enabled: true
+  auto_backup: true
+  backup_retention: 10

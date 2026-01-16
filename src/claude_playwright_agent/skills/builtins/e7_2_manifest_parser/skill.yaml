@@ -1,0 +1,34 @@
+name: e7_2_manifest_parser
+version: 1.0.0
+description: E7.2 - Skill Manifest Parser. Parses and validates skill manifests with full context tracking through parsing lifecycle.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+
+# Tags for categorization
+tags:
+  - skills
+  - parsing
+  - validation
+  - e7
+
+# Capabilities
+capabilities:
+  - yaml_parsing
+  - manifest_validation
+  - checksum_computation
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  strict_validation: true

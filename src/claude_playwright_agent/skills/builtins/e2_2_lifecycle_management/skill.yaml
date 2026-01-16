@@ -1,0 +1,39 @@
+name: e2_2_lifecycle_management
+version: 1.0.0
+description: E2.2 - Agent Lifecycle Management. Manages agent spawning, initialization, execution, and termination with context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e2_1_orchestrator_core
+
+# Tags for categorization
+tags:
+  - orchestration
+  - lifecycle
+  - e2
+  - agent
+
+# Capabilities
+capabilities:
+  - agent_spawning
+  - agent_initialization
+  - agent_monitoring
+  - agent_termination
+  - context_tracking
+  - resource_management
+
+# Settings
+settings:
+  enabled: true
+  heartbeat_interval: 30
+  agent_timeout: 300
+  max_concurrent_agents: 10

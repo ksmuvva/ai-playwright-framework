@@ -1,0 +1,332 @@
+# Claude Playwright Agent - Framework Configuration
+# This file contains default settings for the framework
+#
+# Documentation: https://github.com/anthropics/claude-playwright-agent/docs/configuration.md
+
+# ============================================================================
+# FRAMEWORK SELECTION
+# ============================================================================
+framework:
+  # BDD framework: behave, pytest-bdd
+  bdd_framework: behave
+
+  # Project template: basic, advanced, ecommerce
+  template: basic
+
+  # Default timeout for operations (milliseconds)
+  default_timeout: 30000
+
+# ============================================================================
+# BROWSER CONFIGURATION
+# ============================================================================
+browser:
+  # Browser engine: chromium, firefox, webkit
+  browser: chromium
+
+  # Run browser in headless mode
+  headless: true
+
+  # Enable DevTools for debugging
+  devtools: false
+
+  # Slow down operations by specified milliseconds (useful for debugging)
+  slow_mo: 0
+
+  # Browser viewport size
+  viewport:
+    width: 1280
+    height: 720
+
+  # Launch options
+  args: []
+
+  # Ignore HTTPS errors
+  ignore_https_errors: false
+
+# ============================================================================
+# TEST EXECUTION
+# ============================================================================
+execution:
+  # Number of parallel workers (set to 1 for sequential execution)
+  parallel_workers: 1
+
+  # Number of times to retry failed tests
+  retry_failed: 0
+
+  # Stop execution on first failure
+  fail_fast: false
+
+  # Enable self-healing selector recovery
+  self_healing: true
+
+  # Test execution order: random, sequential, tagged
+  execution_order: sequential
+
+  # Maximum test execution time (seconds)
+  max_test_time: 300
+
+# ============================================================================
+# AI CONFIGURATION
+# ============================================================================
+ai:
+  # LLM Provider: anthropic, openai, glm
+  provider: glm
+
+  # Model to use
+  # Anthropic: claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022
+  # OpenAI: gpt-4, gpt-4-turbo, gpt-3.5-turbo
+  # GLM: glm-4-plus, glm-4, glm-3-turbo
+  model: glm-4-plus
+
+  # Maximum tokens for LLM responses
+  max_tokens: 8192
+
+  # Temperature for LLM (0.0 - 1.0)
+  temperature: 0.3
+
+  # Enable response caching
+  enable_caching: true
+
+  # Request timeout (seconds)
+  timeout: 120
+
+  # Enable tool calling
+  enable_tools: true
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: INFO
+
+  # Enable console output
+  console: true
+
+  # Log file path (relative to project root)
+  file: logs/cpa.log
+
+  # Use JSON format for logs
+  json_format: false
+
+  # Include timestamps in logs
+  timestamps: true
+
+  # Log rotation: when to rotate logs (size, time)
+  rotation:
+    enabled: true
+    max_size_mb: 10
+    backup_count: 5
+
+# ============================================================================
+# RECORDING & INGESTION
+# ============================================================================
+recording:
+  # Input directory for recordings
+  input_dir: recordings
+
+  # Automatically generate page objects after ingestion
+  generate_page_objects: true
+
+  # Run deduplication after ingestion
+  deduplicate_elements: true
+
+  # Minimum usage count for component extraction
+  min_usage_for_component: 2
+
+  # Supported recording formats
+  formats:
+    - playwright
+    - chrome-devtools
+
+  # Ignore elements matching these selectors
+  ignore_selectors:
+    - "[data-testid*='advertisement']"
+    - "[id*='ad-banner']"
+
+# ============================================================================
+# PAGE OBJECT GENERATION
+# ============================================================================
+page_objects:
+  # Output directory for generated page objects
+  output_dir: pages
+
+  # Base class name for generated page objects
+  base_class: BasePage
+
+  # Use async/await in generated code
+  use_async: true
+
+  # Include type hints in generated code
+  include_type_hints: true
+
+  # Include docstrings in generated code
+  include_docstrings: true
+
+  # Naming convention for page classes: PascalCase, camelCase
+  naming_convention: PascalCase
+
+  # Generate separate component classes
+  generate_components: true
+
+  # Component output directory
+  component_output_dir: components
+
+# ============================================================================
+# SELF-HEALING
+# ============================================================================
+self_healing:
+  # Enable self-healing
+  enabled: true
+
+  # Maximum number of healing attempts
+  max_attempts: 3
+
+  # Healing strategies to use (in order)
+  strategies:
+    - exact_match
+    - contains_text
+    - role_match
+    - attribute_match
+    - structure_match
+    - nearby_elements
+    - fuzzy_text
+    - sibling_locator
+    - parent_child
+
+  # Confidence threshold for accepting healed selector
+  confidence_threshold: 0.7
+
+  # Log healing attempts
+  log_attempts: true
+
+# ============================================================================
+# BDD GENERATION
+# ============================================================================
+bdd:
+  # Output directory for feature files
+  features_dir: features
+
+  # Output directory for step definitions
+  steps_dir: steps
+
+  # Gherkin dialect: en, es, fr, de, etc.
+  language: en
+
+  # Generate step definitions automatically
+  generate_steps: true
+
+  # Use scenario outlines for data-driven tests
+  use_scenario_outlines: true
+
+  # Include tags in generated scenarios
+  include_tags: true
+
+  # Default tags to add
+  default_tags:
+    - generated
+
+# ============================================================================
+# REPORTING
+# ============================================================================
+reporting:
+  # Report format: html, json, junit, all
+  format: html
+
+  # Output directory for reports
+  output_dir: reports
+
+  # Include screenshots in reports
+  include_screenshots: true
+
+  # Include AI-powered analysis in reports
+  include_ai_analysis: true
+
+  # Include video recordings (if available)
+  include_video: false
+
+  # Generate execution timeline
+  include_timeline: true
+
+  # Report retention (days)
+  retention_days: 30
+
+  # Generate summary statistics
+  include_statistics: true
+
+# ============================================================================
+# STATE MANAGEMENT
+# ============================================================================
+state:
+  # State file location
+  file: .cpa/state.json
+
+  # Auto-save state after operations
+  auto_save: true
+
+  # Backup state before changes
+  backup: true
+
+  # Maximum number of backups
+  max_backups: 10
+
+# ============================================================================
+# INTEGRATION
+# ============================================================================
+integration:
+  # CI/CD platforms: jenkins, github-actions, gitlab-ci, azure-devops
+  platforms:
+    - name: jenkins
+      enabled: false
+      report_format: junit
+    - name: github-actions
+      enabled: false
+      report_format: html
+    - name: gitlab-ci
+      enabled: false
+      report_format: junit
+
+  # Test management tools: testrail, qtest, zephyr
+  test_management:
+    enabled: false
+    platform: null
+    api_key: null
+    project_id: null
+
+# ============================================================================
+# PERFORMANCE
+# ============================================================================
+performance:
+  # Enable performance monitoring
+  enabled: false
+
+  # Record page load times
+  record_page_load: true
+
+  # Record API response times
+  record_api_times: true
+
+  # Performance thresholds (milliseconds)
+  thresholds:
+    page_load: 3000
+    api_response: 1000
+    element_interaction: 500
+
+# ============================================================================
+# SECURITY
+# ============================================================================
+security:
+  # Scan for security vulnerabilities
+  enabled: false
+
+  # Check for exposed API keys
+  check_api_keys: true
+
+  # Check for sensitive data in logs
+  check_logs: true
+
+  # SQL injection patterns to look for
+  sql_injection_check: true
+
+  # XSS patterns to look for
+  xss_check: true

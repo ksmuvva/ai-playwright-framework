@@ -1,0 +1,41 @@
+name: e9_3_test_reporting
+version: 1.0.0
+description: E9.3 - Test Reporting & Analytics. Aggregates test results, generates reports, provides analytics and trend analysis with full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies:
+  - jinja2
+  - plotly
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e5_1_bdd_conversion
+  - e9_1_parallel_execution
+
+# Tags for categorization
+tags:
+  - reporting
+  - analytics
+  - trends
+  - dashboard
+  - e9
+
+# Capabilities
+capabilities:
+  - result_aggregation
+  - report_generation
+  - trend_analysis
+  - export_formats
+
+# Settings
+settings:
+  enabled: true
+  generate_html: true
+  generate_pdf: false
+  include_charts: true

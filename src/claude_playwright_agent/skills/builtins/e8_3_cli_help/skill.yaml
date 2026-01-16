@@ -1,0 +1,37 @@
+name: e8_3_cli_help
+version: 1.0.0
+description: E8.3 - CLI Help & Documentation. Provides comprehensive help system, documentation generation, and user guidance with full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e7_1_skill_registry
+
+# Tags for categorization
+tags:
+  - cli
+  - help
+  - documentation
+  - user-experience
+  - e8
+
+# Capabilities
+capabilities:
+  - help_generation
+  - documentation_rendering
+  - command_discovery
+  - example_generation
+
+# Settings
+settings:
+  enabled: true
+  include_examples: true
+  format_markdown: true

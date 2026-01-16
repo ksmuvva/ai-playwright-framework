@@ -1,0 +1,35 @@
+name: e7_3_custom_skill_support
+version: 1.0.0
+description: E7.3 - Custom Skill Support. Creates and scaffolds custom skills with full context tracking through creation lifecycle.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e7_2_manifest_parser
+
+# Tags for categorization
+tags:
+  - skills
+  - scaffolding
+  - custom_skills
+  - e7
+
+# Capabilities
+capabilities:
+  - skill_scaffolding
+  - template_generation
+  - project_structure
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  template_type: full

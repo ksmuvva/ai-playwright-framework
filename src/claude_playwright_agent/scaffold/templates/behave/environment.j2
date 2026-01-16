@@ -1,0 +1,131 @@
+"""
+Behave environment setup for {{ project_name }}.
+
+This module contains hooks that run before and after:
+- Each scenario
+- Each feature
+- The entire test run
+"""
+
+from playwright.sync_api import BrowserType
+from typing import Any
+
+# =============================================================================
+# Before/After Hooks
+# =============================================================================
+
+
+def before_all(context: Any) -> None:
+    """
+    Run before the entire test suite.
+
+    Args:
+        context: Behave context object
+    """
+    # Initialize context attributes
+    context.base_url = "{{ base_url }}"
+    context.browser_type = "{{ browser }}"
+    context.headless = True
+{% if self_healing %}
+    context.self_healing = True
+{% endif %}
+
+    # Store page objects
+    context.pages = {}
+
+
+def after_all(context: Any) -> None:
+    """
+    Run after the entire test suite.
+
+    Args:
+        context: Behave context object
+    """
+    # Cleanup, close connections, etc.
+    pass
+
+
+def before_feature(context: Any, feature: Any) -> None:
+    """
+    Run before each feature.
+
+    Args:
+        context: Behave context object
+        feature: Behave feature object
+    """
+    # Feature-level setup
+    pass
+
+
+def after_feature(context: Any, feature: Any) -> None:
+    """
+    Run after each feature.
+
+    Args:
+        context: Behave context object
+        feature: Behave feature object
+    """
+    # Feature-level cleanup
+    pass
+
+
+def before_scenario(context: Any, scenario: Any) -> None:
+    """
+    Run before each scenario.
+
+    Args:
+        context: Behave context object
+        scenario: Behave scenario object
+    """
+    # Scenario-level setup
+    # The browser will be launched by the first step that needs it
+    pass
+
+
+def after_scenario(context: Any, scenario: Any) -> None:
+    """
+    Run after each scenario.
+
+    Args:
+        context: Behave context object
+        scenario: Behave scenario object
+    """
+    # Close browser if it was launched
+    if hasattr(context, "browser") and context.browser:
+        context.browser.close()
+        context.browser = None
+
+    if hasattr(context, "page") and context.page:
+        context.page = None
+
+{% if with_screenshots %}
+    # Take screenshot on failure
+    if scenario.status == "failed" and hasattr(context, "page"):
+        try:
+            screenshot_name = f"{scenario.feature.name}_{scenario.name}.png"
+            context.page.screenshot(path=f"screenshots/{screenshot_name}")
+        except Exception:
+            pass
+{% endif %}
+
+
+def before_step(context: Any, step: Any) -> None:
+    """
+    Run before each step.
+
+    Args:
+        context: Behave context object
+        step: Behave step object
+    """
+    pass
+
+
+def after_step(context: Any, step: Any) -> None:
+    """
+    Run after each step.
+
+    Args:
+        context: Behave context object
+        step: Behave step object
+    """
+    pass

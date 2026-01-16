@@ -1,0 +1,40 @@
+name: e9_4_api_validation
+version: 1.0.0
+description: E9.4 - API Validation Integration. Integrates API validation into tests with schema validation, response checking, and full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies:
+  - pydantic
+  - jsonschema
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e5_1_bdd_conversion
+  - e8_1_error_handling
+
+# Tags for categorization
+tags:
+  - api
+  - validation
+  - schema
+  - testing
+  - e9
+
+# Capabilities
+capabilities:
+  - schema_validation
+  - response_validation
+  - contract_testing
+  - api_mocking
+
+# Settings
+settings:
+  enabled: true
+  strict_validation: true
+  mock_responses: false

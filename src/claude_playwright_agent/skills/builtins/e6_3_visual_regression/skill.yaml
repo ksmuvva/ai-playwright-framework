@@ -1,0 +1,38 @@
+name: e6_3_visual_regression
+version: 1.0.0
+description: E6.3 - Visual Regression. Captures and compares screenshots for visual regression testing with diff generation and full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies:
+  - pillow
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e6_1_advanced_recording
+
+# Tags for categorization
+tags:
+  - visual
+  - regression
+  - screenshots
+  - diff
+  - e6
+
+# Capabilities
+capabilities:
+  - screenshot_capture
+  - visual_comparison
+  - diff_generation
+  - baseline_management
+
+# Settings
+settings:
+  enabled: true
+  threshold: 0.1
+  diff_color: "#ff0000"

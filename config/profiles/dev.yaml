@@ -1,0 +1,44 @@
+# Development Profile
+# Optimized for local development with debugging enabled
+
+# Inherits from config/default/config.yaml and overrides specific settings
+
+browser:
+  headless: false
+  devtools: true
+  slow_mo: 100  # Slow down operations for visibility
+  viewport:
+    width: 1920
+    height: 1080
+
+logging:
+  level: DEBUG
+  console: true
+  json_format: false
+
+execution:
+  parallel_workers: 1
+  fail_fast: true
+
+ai:
+  temperature: 0.5  # More creative for debugging
+  enable_caching: false  # Disable cache during development
+
+self_healing:
+  enabled: true
+  log_attempts: true
+  max_attempts: 5  # More attempts during development
+
+reporting:
+  format: html
+  include_screenshots: true
+  include_ai_analysis: true
+  include_timeline: true
+
+bdd:
+  generate_steps: true
+  use_scenario_outlines: true
+
+recording:
+  generate_page_objects: true
+  deduplicate_elements: true

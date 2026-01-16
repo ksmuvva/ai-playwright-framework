@@ -1,0 +1,37 @@
+name: e6_2_network_recording
+version: 1.0.0
+description: E6.2 - Network Recording. Records and mocks network traffic with HAR capture, request/response tracking, and full context preservation.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e3_2_playwright_parser
+
+# Tags for categorization
+tags:
+  - network
+  - recording
+  - mocking
+  - har
+  - e6
+
+# Capabilities
+capabilities:
+  - network_capture
+  - har_generation
+  - request_mocking
+  - traffic_analysis
+
+# Settings
+settings:
+  enabled: true
+  capture_har: true
+  record_traffic: true

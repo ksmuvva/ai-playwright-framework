@@ -1,0 +1,35 @@
+name: e7_5_discovery_documentation
+version: 1.0.0
+description: E7.5 - Skill Discovery & Documentation. Discovers and documents skills with full context tracking through discovery lifecycle.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e7_1_skill_registry
+
+# Tags for categorization
+tags:
+  - skills
+  - discovery
+  - documentation
+  - e7
+
+# Capabilities
+capabilities:
+  - skill_discovery
+  - documentation_generation
+  - metadata_extraction
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  scan_recursive: true

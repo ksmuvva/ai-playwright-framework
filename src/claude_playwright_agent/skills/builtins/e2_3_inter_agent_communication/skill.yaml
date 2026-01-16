@@ -1,0 +1,38 @@
+name: e2_3_inter_agent_communication
+version: 1.0.0
+description: E2.3 - Inter-Agent Communication. Message passing system with context propagation between agents.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e2_1_orchestrator_core
+  - e2_2_lifecycle_management
+
+# Tags for categorization
+tags:
+  - orchestration
+  - communication
+  - messaging
+  - e2
+
+# Capabilities
+capabilities:
+  - message_passing
+  - context_propagation
+  - broadcast_messaging
+  - request_response
+  - message_filtering
+  - priority_messaging
+
+# Settings
+settings:
+  enabled: true
+  max_queue_size: 1000
+  message_timeout: 30

@@ -1,0 +1,39 @@
+name: e9_2_cicd_integration
+version: 1.0.0
+description: E9.2 - CI/CD Integration. Integrates with CI/CD pipelines including GitHub Actions, GitLab CI, Jenkins with full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e9_1_parallel_execution
+  - e8_4_progress_feedback
+
+# Tags for categorization
+tags:
+  - cicd
+  - integration
+  - pipeline
+  - automation
+  - e9
+
+# Capabilities
+capabilities:
+  - github_actions
+  - gitlab_ci
+  - jenkins
+  - pipeline_generation
+  - artifact_management
+
+# Settings
+settings:
+  enabled: true
+  default_platform: github
+  generate_artifacts: true

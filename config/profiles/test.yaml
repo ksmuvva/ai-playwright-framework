@@ -1,0 +1,48 @@
+# Test Profile
+# Optimized for test environments and CI/CD pipelines
+
+# Inherits from config/default/config.yaml and overrides specific settings
+
+browser:
+  headless: true
+  devtools: false
+  slow_mo: 0
+
+logging:
+  level: INFO
+  console: true
+  json_format: true  # JSON format for CI/CD parsing
+
+execution:
+  parallel_workers: 4  # Run tests in parallel
+  retry_failed: 2  # Retry failed tests
+  fail_fast: false
+
+ai:
+  temperature: 0.3
+  enable_caching: true  # Enable caching for performance
+
+self_healing:
+  enabled: true
+  log_attempts: false  # Reduce logging in test runs
+  max_attempts: 3
+
+reporting:
+  format: all  # Generate all report formats (html, json, junit)
+  include_screenshots: true
+  include_ai_analysis: true
+
+bdd:
+  generate_steps: true
+  include_tags: true
+
+recording:
+  generate_page_objects: true
+  deduplicate_elements: true
+
+# Test-specific settings
+performance:
+  enabled: true
+  thresholds:
+    page_load: 5000
+    api_response: 2000

@@ -1,0 +1,35 @@
+name: e1_3_project_initialization
+version: 1.0.0
+description: E1.3 - Project Initialization. Provides project scaffolding with templates for BDD frameworks.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies: []
+
+# Tags for categorization
+tags:
+  - framework
+  - scaffolding
+  - e1
+  - foundation
+
+# Capabilities
+capabilities:
+  - project_scaffolding
+  - template_generation
+  - framework_setup
+  - directory_creation
+  - file_generation
+
+# Settings
+settings:
+  enabled: true
+  default_framework: behave
+  default_template: basic

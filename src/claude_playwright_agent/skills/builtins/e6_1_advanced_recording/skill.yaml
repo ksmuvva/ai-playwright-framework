@@ -1,0 +1,39 @@
+name: e6_1_advanced_recording
+version: 1.0.0
+description: E6.1 - Advanced Recording Techniques. Provides video recording, screenshot capture, and trace recording with full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e3_1_ingestion_agent
+  - e3_2_playwright_parser
+
+# Tags for categorization
+tags:
+  - recording
+  - video
+  - screenshots
+  - trace
+  - e6
+
+# Capabilities
+capabilities:
+  - video_recording
+  - screenshot_capture
+  - trace_recording
+  - artifact_management
+
+# Settings
+settings:
+  enabled: true
+  record_video: true
+  capture_screenshots: true
+  save_traces: true

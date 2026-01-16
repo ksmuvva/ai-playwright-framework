@@ -1,0 +1,38 @@
+name: e6_5_recording_enhancement
+version: 1.0.0
+description: E6.5 - Recording Enhancement. AI-assisted recording enhancements including smart selector generation, step optimization, and context-aware recording with full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e3_2_playwright_parser
+  - e4_2_element_deduplication
+
+# Tags for categorization
+tags:
+  - ai
+  - enhancement
+  - optimization
+  - smart-recording
+  - e6
+
+# Capabilities
+capabilities:
+  - smart_selectors
+  - step_optimization
+  - context_awareness
+  - recording_improvement
+
+# Settings
+settings:
+  enabled: true
+  optimize_steps: true
+  generate_smart_selectors: true

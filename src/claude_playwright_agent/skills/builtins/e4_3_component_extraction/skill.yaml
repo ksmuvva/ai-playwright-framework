@@ -1,0 +1,36 @@
+name: e4_3_component_extraction
+version: 1.0.0
+description: E4.3 - Component Extraction. Extracts reusable components from patterns with full context tracking for component lifecycles.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e4_2_element_deduplication
+
+# Tags for categorization
+tags:
+  - deduplication
+  - components
+  - extraction
+  - e4
+
+# Capabilities
+capabilities:
+  - component_detection
+  - reusable_extraction
+  - component_grouping
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  min_element_count: 2
+  component_naming: auto

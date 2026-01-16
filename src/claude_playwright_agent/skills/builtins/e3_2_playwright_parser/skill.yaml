@@ -1,0 +1,36 @@
+name: e3_2_playwright_parser
+version: 1.0.0
+description: E3.2 - Playwright Recording Parser. Parses Playwright recording files with context-aware extraction and metadata tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e3_1_ingestion_agent
+
+# Tags for categorization
+tags:
+  - ingestion
+  - parser
+  - playwright
+  - e3
+
+# Capabilities
+capabilities:
+  - javascript_parsing
+  - action_extraction
+  - selector_extraction
+  - context_preservation
+  - ast_analysis
+
+# Settings
+settings:
+  enabled: true
+  extract_fallback_selectors: true
+  generate_action_context: true

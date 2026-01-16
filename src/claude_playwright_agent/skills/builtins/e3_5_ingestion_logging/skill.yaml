@@ -1,0 +1,37 @@
+name: e3_5_ingestion_logging
+version: 1.0.0
+description: E3.5 - Ingestion Logging & Tracking. Comprehensive logging and tracking for the ingestion pipeline with full context preservation.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e3_1_ingestion_agent
+
+# Tags for categorization
+tags:
+  - ingestion
+  - logging
+  - tracking
+  - e3
+
+# Capabilities
+capabilities:
+  - pipeline_logging
+  - progress_tracking
+  - context_logging
+  - error_tracking
+  - metrics_collection
+
+# Settings
+settings:
+  enabled: true
+  log_level: info
+  track_metrics: true

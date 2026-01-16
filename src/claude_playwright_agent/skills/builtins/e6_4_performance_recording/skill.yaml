@@ -1,0 +1,38 @@
+name: e6_4_performance_recording
+version: 1.0.0
+description: E6.4 - Performance Recording. Records performance metrics during test execution including timings, resources, and bottlenecks with full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e6_1_advanced_recording
+  - e9_5_performance_monitoring
+
+# Tags for categorization
+tags:
+  - performance
+  - metrics
+  - timing
+  - profiling
+  - e6
+
+# Capabilities
+capabilities:
+  - timing_capture
+  - resource_tracking
+  - bottleneck_detection
+  - performance_reporting
+
+# Settings
+settings:
+  enabled: true
+  capture_timings: true
+  track_resources: true

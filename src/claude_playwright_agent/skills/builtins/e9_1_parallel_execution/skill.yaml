@@ -1,0 +1,38 @@
+name: e9_1_parallel_execution
+version: 1.0.0
+description: E9.1 - Parallel Test Execution. Executes tests in parallel with resource management, synchronization, and full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e2_1_agent_lifecycle
+  - e5_4_scenario_optimization
+
+# Tags for categorization
+tags:
+  - parallel
+  - execution
+  - testing
+  - performance
+  - e9
+
+# Capabilities
+capabilities:
+  - parallel_execution
+  - resource_management
+  - synchronization
+  - load_balancing
+
+# Settings
+settings:
+  enabled: true
+  max_workers: 4
+  worker_timeout: 300

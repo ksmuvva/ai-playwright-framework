@@ -1,0 +1,35 @@
+name: e7_4_lifecycle_management
+version: 1.0.0
+description: E7.4 - Skill Lifecycle Management. Manages skill lifecycle operations with full context tracking through all lifecycle stages.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e7_1_skill_registry
+
+# Tags for categorization
+tags:
+  - skills
+  - lifecycle
+  - management
+  - e7
+
+# Capabilities
+capabilities:
+  - lifecycle_management
+  - state_tracking
+  - dependency_management
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  auto_cleanup: true

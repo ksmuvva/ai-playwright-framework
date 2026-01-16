@@ -1,0 +1,36 @@
+name: e5_4_scenario_optimization
+version: 1.0.0
+description: E5.4 - Scenario Optimization. Optimizes Gherkin scenarios with full context tracking through optimization pipeline.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e5_2_gherkin_generation
+
+# Tags for categorization
+tags:
+  - bdd
+  - optimization
+  - refactoring
+  - e5
+
+# Capabilities
+capabilities:
+  - scenario_optimization
+  - step_consolidation
+  - duplicate_detection
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  consolidation_enabled: true
+  duplicate_threshold: 0.9

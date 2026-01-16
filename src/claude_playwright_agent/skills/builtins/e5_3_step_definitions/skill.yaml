@@ -1,0 +1,36 @@
+name: e5_3_step_definitions
+version: 1.0.0
+description: E5.3 - Step Definition Creator. Creates step definitions from Gherkin steps with full context tracking for step implementation lifecycle.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e5_2_gherkin_generation
+
+# Tags for categorization
+tags:
+  - bdd
+  - step_definitions
+  - code_generation
+  - e5
+
+# Capabilities
+capabilities:
+  - step_definition_generation
+  - code_template_creation
+  - parameter_extraction
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  framework: behave
+  include_imports: true

@@ -1,0 +1,39 @@
+# Claude Playwright Agent - {{ project_name }}
+# Auto-generated on scaffold
+
+# Core Framework
+{% if framework == 'behave' %}
+behave>=1.2.6
+{% else %}
+pytest-bdd>=7.0.0
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-xdist>=3.3.0
+{% endif %}
+
+# Playwright
+playwright>=1.40.0
+
+# Page Objects
+playwright-stealth>=1.0.0
+
+# Reporting
+{% if with_reports %}
+allure-pytest>=2.13.0
+pytest-html>=3.2.0
+{% endif %}
+
+# Utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0
+requests>=2.31.0
+
+# Self-Healing
+{% if self_healing %}
+levenshtein>=0.21.0
+{% endif %}
+
+# Development (optional)
+# black>=23.0.0
+# pylint>=2.17.0
+# mypy>=1.4.0

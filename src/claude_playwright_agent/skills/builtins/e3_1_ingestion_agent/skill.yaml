@@ -1,0 +1,38 @@
+name: e3_1_ingestion_agent
+version: 1.0.0
+description: E3.1 - Ingestion Agent. Processes Playwright recordings with full context tracking through the ingestion pipeline.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e3_2_playwright_parser
+  - e3_5_ingestion_logging
+
+# Tags for categorization
+tags:
+  - ingestion
+  - recording
+  - e3
+  - pipeline
+
+# Capabilities
+capabilities:
+  - recording_ingestion
+  - file_validation
+  - context_tracking
+  - metadata_extraction
+  - pipeline_orchestration
+
+# Settings
+settings:
+  enabled: true
+  max_file_size: 10485760
+  supported_formats: ".js"

@@ -1,0 +1,36 @@
+name: e5_2_gherkin_generation
+version: 1.0.0
+description: E5.2 - Gherkin Scenario Generation. Generates Gherkin scenarios from actions with full context tracking through scenario generation pipeline.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e5_1_bdd_conversion
+
+# Tags for categorization
+tags:
+  - bdd
+  - gherkin
+  - scenario_generation
+  - e5
+
+# Capabilities
+capabilities:
+  - scenario_generation
+  - step_creation
+  - tag_assignment
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  auto_tags: true
+  include_background: false

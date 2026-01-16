@@ -1,0 +1,26 @@
+GLM Agent Test Report
+Generated: 2026-01-15 10:56:51
+GLM API Key: 85cf3935c0b843738d46...
+Model: glm-4
+Test URL: https://the-internet.herokuapp.com
+============================================================
+
+Total Tests: 4
+Passed: 4
+Failed: 0
+Success Rate: 100.0%
+
+Detailed Results:
+------------------------------------------------------------
+Basic Navigation: PASSED
+  Details: Title: The Internet, Links: 44
+
+Checkbox Interaction: PASSED
+  Details: Interacted with 2 checkboxes
+
+Login Form: PASSED
+  Details: Successfully logged in with valid credentials
+
+Dropdown Selection: PASSED
+  Details: Selected value: 1
+

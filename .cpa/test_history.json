@@ -1,0 +1,19 @@
+{
+  "test_login": [
+    {
+      "status": "passed",
+      "duration": 1.5,
+      "timestamp": "2026-01-13T09:54:10.340185"
+    },
+    {
+      "status": "failed",
+      "duration": 1.8,
+      "timestamp": "2026-01-13T09:54:10.340185"
+    },
+    {
+      "status": "passed",
+      "duration": 1.4,
+      "timestamp": "2026-01-13T09:54:10.340185"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+# CI/CD Profile
+# Optimized for continuous integration pipelines (Jenkins, GitHub Actions, GitLab CI, etc.)
+
+# Inherits from config/default/config.yaml and overrides specific settings
+
+browser:
+  headless: true
+  devtools: false
+  slow_mo: 0
+
+logging:
+  level: INFO
+  console: true
+  json_format: true  # JSON for CI log parsing
+  timestamps: true
+
+execution:
+  parallel_workers: 4  # Balance between speed and resource usage
+  retry_failed: 2
+  fail_fast: false
+
+ai:
+  temperature: 0.3
+  enable_caching: true
+  timeout: 60  # Shorter timeout for CI
+
+self_healing:
+  enabled: true
+  log_attempts: false
+  max_attempts: 2
+
+reporting:
+  format: junit  # JUnit format for CI systems
+  output_dir: reports
+  include_screenshots: true  # Keep screenshots for debugging failed tests
+  include_ai_analysis: false  # Disable AI analysis for faster execution
+  include_timeline: false
+  include_statistics: true
+
+bdd:
+  generate_steps: true
+  include_tags: true
+
+recording:
+  generate_page_objects: false
+  deduplicate_elements: false
+
+# State management for CI
+state:
+  auto_save: false
+  backup: false
+
+# Performance monitoring
+performance:
+  enabled: true
+  record_page_load: true
+  thresholds:
+    page_load: 5000
+    api_response: 2000
+
+# Coverage settings (for pytest)
+# These are used when pytest-cov is enabled
+coverage:
+  fail_under: 70
+  report_formats:
+    - xml
+    - html

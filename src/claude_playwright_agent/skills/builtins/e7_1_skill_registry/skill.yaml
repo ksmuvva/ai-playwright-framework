@@ -1,0 +1,34 @@
+name: e7_1_skill_registry
+version: 1.0.0
+description: E7.1 - Skill Registry System. Manages skill registration with full context tracking through skill lifecycle.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+
+# Tags for categorization
+tags:
+  - skills
+  - registry
+  - management
+  - e7
+
+# Capabilities
+capabilities:
+  - skill_registration
+  - skill_lookup
+  - enable_disable
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  auto_register: true

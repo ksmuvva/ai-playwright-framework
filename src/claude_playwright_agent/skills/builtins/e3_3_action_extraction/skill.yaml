@@ -1,0 +1,36 @@
+name: e3_3_action_extraction
+version: 1.0.0
+description: E3.3 - Action Extraction & Classification. Extracts and classifies Playwright actions with context-aware pattern recognition.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e3_2_playwright_parser
+
+# Tags for categorization
+tags:
+  - ingestion
+  - action
+  - classification
+  - e3
+
+# Capabilities
+capabilities:
+  - action_extraction
+  - action_classification
+  - pattern_detection
+  - context_tracking
+  - metadata_enrichment
+
+# Settings
+settings:
+  enabled: true
+  classify_actions: true
+  detect_patterns: true

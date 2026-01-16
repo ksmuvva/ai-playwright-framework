@@ -1,0 +1,38 @@
+name: e9_5_performance_monitoring
+version: 1.0.0
+description: E9.5 - Performance Monitoring. Monitors test execution performance, resource usage, and bottlenecks with full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e2_1_agent_lifecycle
+  - e9_1_parallel_execution
+
+# Tags for categorization
+tags:
+  - performance
+  - monitoring
+  - metrics
+  - profiling
+  - e9
+
+# Capabilities
+capabilities:
+  - performance_tracking
+  - resource_monitoring
+  - bottleneck_detection
+  - performance_reporting
+
+# Settings
+settings:
+  enabled: true
+  sample_interval: 1.0
+  alert_threshold_ms: 5000

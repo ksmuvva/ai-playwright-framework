@@ -1,0 +1,36 @@
+name: e4_4_page_object_generation
+version: 1.0.0
+description: E4.4 - Page Object Generation. Generates page object models from components with full context tracking through generation lifecycle.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e4_3_component_extraction
+
+# Tags for categorization
+tags:
+  - deduplication
+  - page_objects
+  - generation
+  - e4
+
+# Capabilities
+capabilities:
+  - page_object_generation
+  - code_generation
+  - element_mapping
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  output_format: python
+  include_docstrings: true

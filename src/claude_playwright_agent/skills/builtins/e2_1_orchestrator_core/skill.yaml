@@ -1,0 +1,38 @@
+name: e2_1_orchestrator_core
+version: 1.0.0
+description: E2.1 - Orchestrator Agent Core. Central coordination system for multi-agent workflows with context propagation.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e2_2_lifecycle_management
+  - e2_3_inter_agent_communication
+
+# Tags for categorization
+tags:
+  - orchestration
+  - agent
+  - e2
+  - core
+
+# Capabilities
+capabilities:
+  - workflow_orchestration
+  - context_propagation
+  - agent_coordination
+  - task_distribution
+  - result_aggregation
+
+# Settings
+settings:
+  enabled: true
+  max_concurrent_agents: 10
+  agent_timeout: 300

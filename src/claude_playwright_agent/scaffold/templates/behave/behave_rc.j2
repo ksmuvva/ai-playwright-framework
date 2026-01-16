@@ -1,0 +1,44 @@
+# Behave configuration for {{ project_name }}
+
+[behave]
+# Default paths
+features = features
+steps = steps
+
+# Output format
+{% if with_reports %}
+format = json.pretty
+out = reports/behave-report.json
+{% endif %}
+
+# Show logs
+show_timings = true
+
+# JUnit output (for CI/CD)
+{% if with_reports %}
+junit = true
+junit_directory = reports
+{% endif %}
+
+# Stop on first failure
+# stop_on_failure = false
+
+# Dry run (don't execute tests)
+# dry_run = false
+
+# Preserve order of scenarios
+# preserve_order = false
+
+# Retry failing scenarios
+# retry = 0
+
+# User data for templates
+{% if with_screenshots %}
+screenshot_on_failure = true
+screenshot_directory = screenshots
+{% endif %}
+
+{% if with_videos %}
+video_on_failure = true
+video_directory = videos
+{% endif %}

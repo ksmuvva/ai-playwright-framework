@@ -1,0 +1,141 @@
+"""
+Pytest-BDD configuration for {{ project_name }}.
+
+This module contains fixtures and hooks for pytest-bdd tests.
+"""
+
+from typing import Any, Generator
+
+import pytest
+from playwright.sync_api import Browser, BrowserContext, Page
+
+# =============================================================================
+# Pytest Configuration
+# =============================================================================
+
+
+def pytest_bdd_apply_tag(tag: str, function: Any) -> Any:
+    """
+    Apply pytest markers based on BDD tags.
+
+    Args:
+        tag: BDD tag
+        function: Test function
+
+    Returns:
+        Modified function or None
+    """
+    if tag == "skip":
+        marker = pytest.mark.skip(reason="Skipped via @skip tag")
+        marker(function)
+        return function
+    elif tag == "smoke":
+        marker = pytest.mark.smoke(reason="Smoke test")
+        marker(function)
+        return function
+    elif tag == "regression":
+        marker = pytest.mark.regression(reason="Regression test")
+        marker(function)
+        return function
+    return None
+
+
+# =============================================================================
+# Fixtures
+# =============================================================================
+
+
+@pytest.fixture(scope="function")
+def browser_context_args(
+    browser_context_args: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Configure browser context arguments.
+
+    Args:
+        browser_context_args: Existing browser context args
+
+    Returns:
+        Updated browser context arguments
+    """
+    return {
+        **browser_context_args,
+        "viewport": {"width": 1280, "height": 720},
+{% if with_videos %}
+        "record_video_dir": "videos/",
+{% endif %}
+    }
+
+
+@pytest.fixture(scope="function")
+def page(page: Page, request: Any) -> Generator[Page, None, None]:
+    """
+    Configure page with additional settings.
+
+    Args:
+        page: Playwright Page instance
+        request: Pytest request object
+
+    Yields:
+        Configured Page instance
+    """
+    # Set default timeout
+    page.set_default_timeout(30000)
+
+    # Store base URL from request
+    page.base_url = getattr(request.config, "base_url", "{{ base_url }}")
+
+    yield page
+
+    # Screenshot on failure
+{% if with_screenshots %}
+    if request.node.rep_call.failed:
+        screenshot_path = f"screenshots/{request.node.name}.png"
+        page.screenshot(path=screenshot_path)
+{% endif %}
+
+
+@pytest.fixture(scope="session")
+def base_url() -> str:
+    """Get the base URL for tests."""
+    return "{{ base_url }}"
+
+
+# =============================================================================
+# Hooks
+# =============================================================================
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item: Any) -> Any:
+    """
+    Generate test report for screenshot/video capture.
+
+    Args:
+        item: Test item
+
+    Yields:
+        Test report object
+    """
+    outcome = yield
+    report = outcome.get_result()
+
+    # Store report for fixtures
+    setattr(item, f"rep_{report.when}", report)
+
+
+@pytest.fixture(scope="session")
+def browser_type_launch_args(browser_type_launch_args: dict[str, Any]) -> dict[str, Any]:
+    """
+    Configure browser launch arguments.
+
+    Args:
+        browser_type_launch_args: Existing launch args
+
+    Returns:
+        Updated launch arguments
+    """
+    return {
+        **browser_type_launch_args,
+        "headless": True,
+    }

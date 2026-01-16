@@ -1,0 +1,36 @@
+name: e1_5_dependency_management
+version: 1.0.0
+description: E1.5 - Dependency Management. Provides dependency checking and installation for Python packages and Playwright browsers.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies:
+  - pip>=23.0
+  - playwright>=1.40.0
+
+# Skill dependencies
+dependencies: []
+
+# Tags for categorization
+tags:
+  - framework
+  - dependencies
+  - e1
+  - foundation
+
+# Capabilities
+capabilities:
+  - dependency_checking
+  - package_installation
+  - browser_installation
+  - version_tracking
+  - requirement_generation
+
+# Settings
+settings:
+  enabled: true
+  auto_install: false

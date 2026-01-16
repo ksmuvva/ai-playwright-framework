@@ -1,0 +1,36 @@
+name: e4_1_deduplication_agent
+version: 1.0.0
+description: E4.1 - Deduplication Agent. Analyzes multiple recordings for repeated patterns and creates reusable page object models with full context tracking.
+
+author: Claude Playwright Agent
+license: MIT
+homepage: https://github.com/anthropics/claude-playwright-agent
+repository: https://github.com/anthropics/claude-playwright-agent
+
+# Python dependencies
+python_dependencies: []
+
+# Skill dependencies
+dependencies:
+  - e1_2_state_management
+  - e3_2_playwright_parser
+
+# Tags for categorization
+tags:
+  - deduplication
+  - patterns
+  - analysis
+  - e4
+
+# Capabilities
+capabilities:
+  - pattern_analysis
+  - selector_frequency
+  - repeated_element_detection
+  - context_preservation
+
+# Settings
+settings:
+  enabled: true
+  min_selector_count: 2
+  min_confidence: 0.5

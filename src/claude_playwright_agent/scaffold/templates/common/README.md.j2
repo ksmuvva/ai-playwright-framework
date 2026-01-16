@@ -1,0 +1,114 @@
+# {{ project_name }}
+
+AI-powered test automation framework using Claude Playwright Agent.
+
+## Overview
+
+This project uses:
+- **Framework**: {{ framework_class }}
+- **Browser**: {{ browser|title }}
+- **Base URL**: {{ base_url }}
+
+## Project Structure
+
+```
+.
+├── .cpa/              # Claude Playwright Agent configuration and state
+├── features/          # BDD feature files (Gherkin scenarios)
+├── pages/             # Page Object Model classes
+├── steps/             # Step definitions
+├── recordings/        # Playwright recordings
+└── reports/           # Test execution reports
+```
+
+## Prerequisites
+
+- Python 3.10+
+- Node.js (for Playwright)
+
+## Installation
+
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Install Playwright browsers
+playwright install {{ browser }}
+```
+
+## Usage
+
+### Initialize a new recording
+
+```bash
+# Record a test scenario
+cpa record --name login-scenario
+```
+
+### Ingest Playwright recordings
+
+```bash
+# Convert recordings to BDD scenarios
+cpa ingest recordings/login-scenario.js
+```
+
+### Run tests
+
+```bash
+# Run all tests
+cpa run
+
+# Run specific feature
+cpa run --features features/login.feature
+
+# Run with specific browser
+cpa run --browser firefox
+
+# Run in parallel
+cpa run --parallel 4
+```
+
+### View reports
+
+```bash
+# Generate and view HTML report
+cpa report
+```
+
+## Configuration
+
+Configuration is managed in `.cpa/config.yaml`:
+
+```yaml
+framework:
+  bdd_framework: {{ framework }}
+  base_url: {{ base_url }}
+
+browser:
+  browser: {{ browser }}
+  headless: true
+
+execution:
+  parallel_workers: 1
+  self_healing: {{ self_healing }}
+```
+
+## Self-Healing Selectors
+
+{% if self_healing %}
+This project has self-healing locators enabled. When a selector fails,
+the agent will automatically attempt to find alternative selectors.
+{% else %}
+Self-healing locators are currently disabled. Enable in `.cpa/config.yaml`.
+{% endif %}
+
+## Next Steps
+
+1. Record your first test scenario
+2. Ingest the recording to generate BDD scenarios
+3. Review and customize the generated tests
+4. Run tests and review reports
+
+## Support
+
+For more information, see the [Claude Playwright Agent documentation](https://github.com/anthropics/claude-playwright-agent).
