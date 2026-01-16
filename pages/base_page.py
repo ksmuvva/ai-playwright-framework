@@ -25,9 +25,16 @@ Example:
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
+import logging
 
 from playwright.sync_api import Page, Locator, TimeoutError as PlaywrightTimeoutError, expect
+
+if TYPE_CHECKING:
+    from src.claude_playwright_agent.self_healing.engine import SelfHealingEngine
+    from src.claude_playwright_agent.state.manager import StateManager
+
+logger = logging.getLogger(__name__)
 
 
 class BasePage:
@@ -56,6 +63,8 @@ class BasePage:
         base_url: str = "",
         page_name: str = "UnnamedPage",
         timeout: int = 30000,
+        state_manager: Optional["StateManager"] = None,
+        enable_self_healing: bool = True,
     ) -> None:
         """
         Initialize the BasePage.
@@ -65,12 +74,28 @@ class BasePage:
             base_url: Base URL for the application (e.g., "https://example.com")
             page_name: Name of the page for logging and screenshot naming
             timeout: Default timeout for operations in milliseconds
+            state_manager: StateManager instance for analytics and self-healing
+            enable_self_healing: Enable self-healing selector recovery
         """
         self.page = page
         self.base_url = base_url.rstrip("/") if base_url else ""
         self.page_name = page_name
         self.timeout = timeout
         self._selector_cache: dict[str, Locator] = {}
+        self.state_manager = state_manager
+        self.enable_self_healing = enable_self_healing
+        self._healing_engine: Optional["SelfHealingEngine"] = None
+        self._healing_attempts: list[dict] = []
+
+        # Initialize self-healing if enabled and state_manager provided
+        if enable_self_healing and state_manager:
+            try:
+                from src.claude_playwright_agent.self_healing.engine import SelfHealingEngine
+                self._healing_engine = SelfHealingEngine(state_manager)
+                logger.debug(f"Self-healing enabled for {self.page_name}")
+            except ImportError:
+                logger.warning("SelfHealingEngine not available, self-healing disabled")
+                self.enable_self_healing = False
 
     # ==========================================================================
     # NAVIGATION METHODS
@@ -215,9 +240,19 @@ class BasePage:
         """
         try:
             self.page.click(selector, timeout=self.timeout, **kwargs)
+            self._log_action("click", selector, success=True)
         except PlaywrightTimeoutError as e:
-            # Self-healing would be triggered here via SelfHealingAgent
-            # For now, re-raise with more context
+            # Attempt self-healing if enabled
+            if self._attempt_self_healing("click", selector, str(e)):
+                # Retry with healed selector
+                healed_selector = self._get_last_healed_selector()
+                if healed_selector:
+                    self.page.click(healed_selector, timeout=self.timeout, **kwargs)
+                    logger.info(f"Successfully clicked healed selector: {selector} -> {healed_selector}")
+                    return
+
+            # Self-healing failed or disabled, re-raise with context
+            self._log_action("click", selector, success=False, error=str(e))
             raise TimeoutError(
                 f"Failed to click element '{selector}' on {self.page_name}. "
                 f"Selector may be invalid or element not found."
@@ -243,7 +278,19 @@ class BasePage:
         """
         try:
             self.page.fill(selector, value, timeout=self.timeout, **kwargs)
+            self._log_action("fill", selector, success=True)
         except PlaywrightTimeoutError as e:
+            # Attempt self-healing if enabled
+            if self._attempt_self_healing("fill", selector, str(e)):
+                # Retry with healed selector
+                healed_selector = self._get_last_healed_selector()
+                if healed_selector:
+                    self.page.fill(healed_selector, value, timeout=self.timeout, **kwargs)
+                    logger.info(f"Successfully filled healed selector: {selector} -> {healed_selector}")
+                    return
+
+            # Self-healing failed or disabled, re-raise with context
+            self._log_action("fill", selector, success=False, error=str(e))
             raise TimeoutError(
                 f"Failed to fill element '{selector}' on {self.page_name}. "
                 f"Selector may be invalid or element not found."
@@ -658,6 +705,127 @@ class BasePage:
             >>> page.wait(1000)  # Wait 1 second
         """
         self.page.wait_for_timeout(milliseconds)
+
+    # ==========================================================================
+    # SELF-HEALING HELPER METHODS
+    # ==========================================================================
+
+    def _attempt_self_healing(self, action: str, selector: str, error: str) -> bool:
+        """
+        Attempt to heal a failed selector using SelfHealingEngine.
+
+        Args:
+            action: Action that failed (click, fill, etc.)
+            selector: Original selector that failed
+            error: Error message from the failure
+
+        Returns:
+            True if healing was successful, False otherwise
+        """
+        if not self.enable_self_healing or not self._healing_engine:
+            return False
+
+        try:
+            # Import here to avoid circular imports
+            from src.claude_playwright_agent.self_healing.engine import HealingResult
+
+            logger.info(f"Attempting self-healing for {action} on selector: {selector}")
+
+            # Attempt healing
+            healing_result: HealingResult = self._healing_engine.heal(
+                page=self.page,
+                selector=selector,
+                error=error,
+                context={
+                    "action": action,
+                    "page_name": self.page_name,
+                    "base_url": self.base_url
+                }
+            )
+
+            # Record healing attempt
+            self._healing_attempts.append({
+                "timestamp": datetime.now().isoformat(),
+                "action": action,
+                "original_selector": selector,
+                "healed_selector": healing_result.healed_selector if healing_result.success else None,
+                "strategy_used": healing_result.strategy_used if healing_result.success else None,
+                "success": healing_result.success,
+                "confidence": healing_result.confidence
+            })
+
+            # Log to state manager if available
+            if self.state_manager:
+                self.state_manager.log_event("self_healing_attempt", {
+                    "page": self.page_name,
+                    "action": action,
+                    "selector": selector,
+                    "success": healing_result.success,
+                    "strategy": healing_result.strategy_used
+                })
+
+            return healing_result.success
+
+        except Exception as e:
+            logger.error(f"Self-healing attempt failed: {e}")
+            return False
+
+    def _get_last_healed_selector(self) -> Optional[str]:
+        """
+        Get the most recently healed selector.
+
+        Returns:
+            Healed selector string or None if no healing occurred
+        """
+        if not self._healing_attempts:
+            return None
+
+        # Get the most recent successful healing attempt
+        for attempt in reversed(self._healing_attempts):
+            if attempt["success"]:
+                return attempt["healed_selector"]
+
+        return None
+
+    def _log_action(self, action: str, selector: str, success: bool, error: Optional[str] = None) -> None:
+        """
+        Log an action for analytics.
+
+        Args:
+            action: Action performed (click, fill, etc.)
+            selector: Selector used
+            success: Whether action was successful
+            error: Error message if failed
+        """
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "page": self.page_name,
+            "action": action,
+            "selector": selector,
+            "success": success
+        }
+
+        if error:
+            log_entry["error"] = error
+
+        logger.debug(f"Action logged: {log_entry}")
+
+        # Store in state manager if available
+        if self.state_manager:
+            self.state_manager.log_event("page_action", log_entry)
+
+    def get_healing_analytics(self) -> list[dict]:
+        """
+        Get analytics about self-healing attempts.
+
+        Returns:
+            List of healing attempt dictionaries
+        """
+        return self._healing_attempts.copy()
+
+    def clear_healing_analytics(self) -> None:
+        """Clear healing analytics history."""
+        self._healing_attempts.clear()
 
     def __repr__(self) -> str:
         """String representation of the page."""

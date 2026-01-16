@@ -106,7 +106,10 @@
       "Bash(git checkout:*)",
       "Bash(git merge:*)",
       "Bash(git pull:*)",
-      "Bash(bash cleanup_repo.sh:*)"
+      "Bash(bash cleanup_repo.sh:*)",
+      "Bash(git restore:*)",
+      "Bash(git reset:*)",
+      "Bash(pytest:*)"
     ]
   }
 }
