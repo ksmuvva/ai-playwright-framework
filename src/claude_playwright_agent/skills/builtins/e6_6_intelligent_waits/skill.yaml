@@ -1,0 +1,159 @@
+name: intelligent_waits
+description: Intelligent wait management with explicit, implicit, and smart wait strategies using AI-powered decision making
+version: 1.0.0
+author: Claude Playwright Agent Team
+epic: Recording Enhancements
+tags:
+  - recording
+  - waits
+  - intelligence
+  - optimization
+capabilities:
+  - smart_wait_detection: AI analyzes context to determine optimal wait strategy
+  - explicit_wait_management: Configure explicit waits with conditions and timeouts
+  - implicit_wait_optimization: Global implicit wait configuration with auto-adjustment
+  - dynamic_timeout_adjustment: AI adjusts timeouts based on network conditions
+  - multi_strategy_waits: Combine multiple wait strategies for robustness
+  - wait_analytics: Track wait patterns and suggest optimizations
+input_schema:
+  type: object
+  properties:
+    wait_strategy:
+      type: string
+      enum: [explicit, implicit, smart, hybrid]
+      description: Type of wait strategy to use
+    target_element:
+      type: string
+      description: CSS selector or Playwright locator for target element
+    wait_condition:
+      type: string
+      enum: [visible, hidden, attached, detached, enabled, disabled, stable]
+      description: Condition to wait for
+    timeout:
+      type: integer
+      minimum: 100
+      maximum: 300000
+      default: 30000
+      description: Maximum time to wait in milliseconds
+    poll_interval:
+      type: integer
+      minimum: 50
+      maximum: 5000
+      default: 500
+      description: Polling interval in milliseconds
+    context_aware:
+      type: boolean
+      default: true
+      description: Enable AI-powered context analysis for optimal wait times
+    retry_count:
+      type: integer
+      minimum: 1
+      maximum: 10
+      default: 3
+      description: Number of retry attempts for smart waits
+output_schema:
+  type: object
+  properties:
+    wait_results:
+      type: array
+      items:
+        type: object
+        properties:
+          element:
+            type: string
+          strategy:
+            type: string
+          condition:
+            type: string
+          duration:
+            type: integer
+          success:
+            type: boolean
+          message:
+            type: string
+    optimization_suggestions:
+      type: array
+      items:
+        type: string
+    analytics:
+      type: object
+      properties:
+        total_wait_time:
+          type: integer
+        average_wait_time:
+          type: number
+        success_rate:
+          type: number
+        recommended_timeout:
+          type: integer
+configuration_schema:
+  type: object
+  properties:
+    default_timeout:
+      type: integer
+      default: 30000
+      description: Default timeout for all waits
+    implicit_wait_enabled:
+      type: boolean
+      default: true
+      description: Enable global implicit wait
+    implicit_wait_duration:
+      type: integer
+      default: 5000
+      description: Global implicit wait duration
+    smart_wait_enabled:
+      type: boolean
+      default: true
+      description: Enable AI-powered smart waits
+    network_based_timeouts:
+      type: boolean
+      default: true
+      description: Adjust timeouts based on network conditions
+    wait_optimization:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: true
+        learning_rate:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          default: 0.1
+        min_sample_size:
+          type: integer
+          default: 10
+examples:
+  - name: Smart wait for element visibility
+    input:
+      wait_strategy: smart
+      target_element: "#submit-button"
+      wait_condition: visible
+      timeout: 30000
+      context_aware: true
+    description: AI analyzes page context and waits for element with optimal timing
+  - name: Explicit wait with multiple conditions
+    input:
+      wait_strategy: explicit
+      target_element: ".loading-spinner"
+      wait_condition: hidden
+      timeout: 60000
+      poll_interval: 1000
+    description: Wait explicitly for element to be hidden with 1-second polling
+  - name: Implicit wait configuration
+    input:
+      wait_strategy: implicit
+      timeout: 30000
+      context_aware: true
+    description: Set global implicit wait for all element interactions
+  - name: Hybrid wait for dynamic content
+    input:
+      wait_strategy: hybrid
+      target_element: ".data-loaded"
+      wait_condition: visible
+      retry_count: 5
+      context_aware: true
+    description: Combine explicit and smart waits for robust dynamic content handling
+dependencies:
+  - playwright
+  - state_manager

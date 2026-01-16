@@ -725,6 +725,214 @@ Healing Report:
 
 ---
 
+### 5.5 intelligent-waits
+
+**Type:** Wait Management Skill
+**Agent:** Execution Agent
+**Category:** execution
+**Epic:** E6 - Advanced Automation Techniques
+
+**Purpose:** Intelligent wait strategies for robust test automation
+
+**Problem Solved:**
+Eliminates flaky tests caused by timing issues by using AI-powered wait strategies that adapt to page conditions.
+
+**Capabilities:**
+
+| Strategy | Description | Best For |
+|----------|-------------|----------|
+| **explicit_wait** | Wait for specific condition (visible, hidden, enabled, etc.) | Known element states |
+| **implicit_wait** | Global wait for all element interactions | General stability |
+| **smart_wait** | AI-powered context analysis with multiple fallback strategies | Dynamic content |
+| **hybrid_wait** | Combines explicit + smart strategies | Maximum reliability |
+
+**Wait Conditions:**
+
+- `visible` - Element is visible in viewport
+- `hidden` - Element is not visible
+- `attached` - Element is in DOM
+- `detached` - Element removed from DOM
+- `enabled` - Element is enabled
+- `disabled` - Element is disabled
+- `stable` - Element position is stable (no animations)
+
+**Smart Wait Strategies (AI-powered):**
+
+The `smart_wait` analyzes page context and tries multiple strategies in order:
+
+1. **direct_locator** - Direct Playwright wait (fastest)
+2. **wait_for_loading_complete** - Wait for loading spinners to disappear
+3. **wait_for_network_idle** - Wait for network to be idle
+4. **wait_for_animations** - Wait for CSS animations to complete
+5. **poll_visibility** - Poll for element visibility
+6. **wait_for_dom_content** - Wait for DOM to stabilize
+7. **wait_for_attribute** - Wait for data-loaded or data-ready attribute
+
+**Configuration:**
+```yaml
+intelligent_waits:
+  default_timeout: 30000
+  implicit_wait_enabled: true
+  implicit_wait_duration: 5000
+  smart_wait_enabled: true
+  context_aware: true
+  retry_count: 3
+  track_analytics: true
+```
+
+**Usage Examples:**
+
+**Example 1: Smart wait for element**
+```python
+from skills.builtins.e6_6_intelligent_waits import wait_for_element_visible
+
+# Wait for button to be visible (auto-selects best strategy)
+await wait_for_element_visible(page, "#submit-button")
+```
+
+**Example 2: Explicit wait with condition**
+```python
+from skills.builtins.e6_6_intelligent_waits import IntelligentWaitsManager, WaitCondition
+
+manager = IntelligentWaitsManager(page)
+result = await manager.explicit_wait(
+    selector="#modal",
+    condition=WaitCondition.VISIBLE,
+    timeout=30000
+)
+if result.success:
+    print(f"Wait completed in {result.duration_ms}ms")
+```
+
+**Example 3: Smart wait with context analysis**
+```python
+# AI analyzes page and tries optimal strategies
+result = await manager.smart_wait(
+    selector="#dynamic-content",
+    condition=WaitCondition.VISIBLE,
+    timeout=30000,
+    retry_count=3
+)
+# Result includes which strategy succeeded
+print(f"Strategy used: {result.optimizations}")
+```
+
+**Example 4: Hybrid wait for maximum reliability**
+```python
+# Try explicit first, fall back to smart
+result = await manager.hybrid_wait(
+    selector="#slow-element",
+    condition=WaitCondition.ENABLED,
+    timeout=30000
+)
+```
+
+**Example 5: Wait for page load**
+```python
+from skills.builtins.e6_6_intelligent_waits import wait_for_page_load
+
+# Wait for network idle
+await wait_for_page_load(page, timeout=30000)
+```
+
+**Example 6: Wait for text content**
+```python
+from skills.builtins.e6_6_intelligent_waits import wait_for_text
+
+# Wait for element to contain specific text
+success = await wait_for_text(
+    page,
+    selector="#message",
+    text="Success",
+    timeout=10000
+)
+```
+
+**Analytics & Optimization:**
+
+The skill tracks wait patterns and provides optimization suggestions:
+
+```python
+# Get analytics summary
+analytics = manager.get_analytics_summary()
+print(f"Total waits: {analytics['total_waits']}")
+print(f"Success rate: {analytics['success_rate']:.1%}")
+print(f"Average wait time: {analytics['average_wait_ms']:.0f}ms")
+print(f"Recommended timeout: {analytics['recommended_timeout_ms']}ms")
+
+# Get optimization suggestions
+suggestions = manager.get_optimization_suggestions()
+for suggestion in suggestions:
+    print(f"Suggestion: {suggestion}")
+```
+
+**Example Analytics Output:**
+```json
+{
+  "total_waits": 150,
+  "successful_waits": 142,
+  "failed_waits": 8,
+  "success_rate": 0.947,
+  "total_wait_time_ms": 1250000,
+  "average_wait_ms": 8333,
+  "recommended_timeout_ms": 15000,
+  "optimization_suggestions": [
+    "Average wait time (8333ms) is optimal",
+    "Success rate is excellent (94.7%)",
+    "Consider reducing timeout to 15000ms for faster test failures"
+  ]
+}
+```
+
+**Benefits:**
+
+- ✅ **Eliminates flaky tests** - Adapts to network and page conditions
+- ✅ **Faster execution** - Uses optimal strategy, not fixed delays
+- ✅ **Better debugging** - Detailed analytics and suggestions
+- ✅ **Self-optimizing** - Learns from historical wait times
+- ✅ **Context-aware** - Detects loading indicators, animations, network state
+
+**Integration with BasePage:**
+
+The intelligent waits are automatically available in BasePage:
+
+```python
+# In page objects
+from pages.base_page import BasePage
+
+class MyPage(BasePage):
+    def wait_for_submit_button(self):
+        # Uses intelligent wait automatically
+        self.assert_visible("#submit-button")
+
+    def wait_for_modal_to_close(self):
+        # Smart wait for element to disappear
+        self.wait_for_selector("#modal", state="hidden")
+```
+
+**Technical Details:**
+
+- **Context Analysis**: Evaluates page load state, network idle, element visibility, loading indicators, animations
+- **Strategy Selection**: Chooses optimal strategy based on context
+- **Fallback Mechanism**: Tries multiple strategies in sequence
+- **Performance Tracking**: Records wait times for optimization
+- **Dynamic Timeouts**: Adjusts based on network conditions
+
+**Dependencies:**
+- Playwright async API
+- Python 3.8+ asyncio support
+- No external ML dependencies
+
+**Location:**
+```
+src/claude_playwright_agent/skills/builtins/e6_6_intelligent_waits/
+├── __init__.py
+├── main.py
+└── skill.yaml
+```
+
+---
+
 ## 6. Analysis Agent Skills
 
 ### 6.1 failure-clustering
