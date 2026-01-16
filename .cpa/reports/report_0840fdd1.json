@@ -1,0 +1,65 @@
+{
+  "report_id": "report_0840fdd1",
+  "timestamp": "2026-01-13T09:54:10.340185",
+  "framework": "",
+  "summary": {
+    "total_tests": 3,
+    "passed": 2,
+    "failed": 1,
+    "skipped": 0,
+    "duration": 5.5,
+    "pass_rate": 66.67
+  },
+  "test_results": [
+    {
+      "name": "test_login",
+      "status": "passed",
+      "duration": 1.5
+    },
+    {
+      "name": "test_logout",
+      "status": "passed",
+      "duration": 0.8
+    },
+    {
+      "name": "test_checkout",
+      "status": "failed",
+      "duration": 3.2,
+      "error_message": "Element not found"
+    }
+  ],
+  "metrics": [
+    {
+      "name": "avg_duration",
+      "value": 1.8333333333333335,
+      "unit": "seconds",
+      "timestamp": "2026-01-13T09:54:10.340185"
+    },
+    {
+      "name": "max_duration",
+      "value": 3.2,
+      "unit": "seconds",
+      "timestamp": "2026-01-13T09:54:10.340185"
+    },
+    {
+      "name": "min_duration",
+      "value": 0.8,
+      "unit": "seconds",
+      "timestamp": "2026-01-13T09:54:10.340185"
+    },
+    {
+      "name": "duration_stddev",
+      "value": 1.2342339054382412,
+      "unit": "seconds",
+      "timestamp": "2026-01-13T09:54:10.340185"
+    },
+    {
+      "name": "throughput",
+      "value": 0.5454545454545454,
+      "unit": "tests/second",
+      "timestamp": "2026-01-13T09:54:10.340185"
+    }
+  ],
+  "flaky_tests": [],
+  "trends": []
+}
