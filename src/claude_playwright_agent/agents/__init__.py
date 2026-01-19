@@ -15,7 +15,6 @@ from claude_playwright_agent.agents.api_agent import APITestingAgent
 from claude_playwright_agent.agents.performance_agent import PerformanceAgent
 from claude_playwright_agent.agents.accessibility_agent import AccessibilityAgent
 from claude_playwright_agent.agents.visual_regression_agent import VisualRegressionAgent
-from claude_playwright_agent.agents.cloud_agent import CloudAgent, CloudProvider, PlatformConfig
 from claude_playwright_agent.agents.orchestrator import (
     AgentMessage,
     AgentLifecycleManager,
@@ -122,9 +121,6 @@ __all__ = [
     "PerformanceAgent",
     "AccessibilityAgent",
     "VisualRegressionAgent",
-    "CloudAgent",
-    "CloudProvider",
-    "PlatformConfig",
     # Orchestrator
     "OrchestratorAgent",
     "get_orchestrator",
