@@ -6,13 +6,17 @@ Provides performance testing capabilities:
 - Resource monitoring
 - Performance profiling
 - Bottleneck identification
+- Load testing with multiple virtual users
+- Network request analysis
+- Resource profiling
 """
 
+import asyncio
 import time
 from typing import Any, Optional
 from dataclasses import dataclass, field
 from pathlib import Path
-from playwright.async_api import Page, Browser
+from playwright.async_api import Page, Browser, BrowserContext
 
 from claude_playwright_agent.agents.base import BaseAgent
 
@@ -30,6 +34,13 @@ class PerformanceMetrics:
     resource_count: int = 0
     js_heap_size: int = 0
     css_heap_size: int = 0
+    image_bytes: int = 0
+    script_count: int = 0
+    stylesheet_count: int = 0
+    image_count: int = 0
+    font_count: int = 0
+    network_requests: int = 0
+    cache_hit_ratio: float = 0
 
 
 @dataclass
@@ -43,6 +54,22 @@ class LoadTestResult:
     p99_response_time_ms: float
     error_rate: float
     throughput: float
+    total_requests: int = 0
+    successful_requests: int = 0
+    failed_requests: int = 0
+    min_response_time_ms: float = 0
+    max_response_time_ms: float = 0
+
+
+@dataclass
+class ResourceProfile:
+    """Resource profiling results."""
+
+    total_size_bytes: int = 0
+    by_type: dict[str, int] = field(default_factory=dict)
+    by_domain: dict[str, int] = field(default_factory=dict)
+    large_resources: list[dict] = field(default_factory=list)
+    slow_requests: list[dict] = field(default_factory=list)
 
 
 class PerformanceAgent(BaseAgent):
@@ -109,7 +136,7 @@ You provide:
             metrics.dom_content_loaded_ms = (time.time() - start_time) * 1000
 
             # Get performance timing
-            timing = page.evaluate("() => performance.timing.toJSON()")
+            timing = await page.evaluate("() => performance.timing.toJSON()")
 
             if timing:
                 if timing.get("loadEventEnd") and timing.get("navigationStart"):
@@ -121,7 +148,7 @@ You provide:
                     )
 
             # Get Paint timing
-            paint_timing = page.evaluate("""() => {
+            paint_timing = await page.evaluate("""() => {
                 const timing = performance.getEntriesByType('paint');
                 const result = {};
                 timing.forEach(entry => {
@@ -134,7 +161,7 @@ You provide:
                 metrics.first_contentful_paint_ms = paint_timing.get("first-contentful-paint", 0)
 
             # Get resource information
-            resources = page.evaluate("""() => {
+            resources = await page.evaluate("""() => {
                 const entries = performance.getEntriesByType('resource');
                 let totalBytes = 0;
                 const types = {js: 0, css: 0, img: 0, other: 0};
@@ -390,3 +417,340 @@ You provide:
             priority="low",
             tags=["performance", "baseline", test_name],
         )
+
+    async def run_load_test(
+        self,
+        browser: Browser,
+        url: str,
+        virtual_users: int = 10,
+        duration_seconds: int = 60,
+        spawn_rate: int = 2,
+    ) -> dict[str, Any]:
+        """
+        Run a load test with multiple virtual users.
+
+        Args:
+            browser: Playwright browser instance
+            url: URL to test
+            virtual_users: Number of virtual users
+            duration_seconds: Test duration in seconds
+            spawn_rate: Users spawned per second
+
+        Returns:
+            Load test results
+        """
+        results: dict[str, Any] = {
+            "virtual_users": virtual_users,
+            "duration_seconds": duration_seconds,
+            "url": url,
+        }
+
+        response_times: list[float] = []
+        errors: list[str] = []
+        requests_count = 0
+        successful_requests = 0
+
+        async def user_session(context: BrowserContext) -> None:
+            """Run a single user session."""
+            page = await context.new_page()
+            try:
+                start = time.time()
+                response = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                elapsed = (time.time() - start) * 1000
+
+                nonlocal requests_count, successful_requests
+                requests_count += 1
+                response_times.append(elapsed)
+
+                if response and response.status < 400:
+                    successful_requests += 1
+                else:
+                    errors.append(f"Status: {response.status if response else 'No response'}")
+
+            except Exception as e:
+                errors.append(str(e))
+                response_times.append(30000)
+            finally:
+                await page.close()
+
+        async def run_test() -> None:
+            """Execute the load test."""
+            nonlocal requests_count, successful_requests
+
+            contexts: list[BrowserContext] = []
+            users_started = 0
+
+            while users_started < virtual_users:
+                context = await browser.new_context()
+                contexts.append(context)
+                asyncio.create_task(user_session(context))
+                users_started += 1
+                await asyncio.sleep(1 / spawn_rate)
+
+            await asyncio.sleep(duration_seconds)
+
+            for context in contexts:
+                await context.close()
+
+        start_time = time.time()
+        await run_test()
+        total_time = time.time() - start_time
+
+        response_times.sort()
+        n = len(response_times)
+
+        if n == 0:
+            return {
+                "success": False,
+                "error": "No requests completed",
+                **results,
+            }
+
+        avg_time = sum(response_times) / n
+        min_time = response_times[0]
+        max_time = response_times[-1]
+        p95_idx = int(n * 0.95)
+        p99_idx = int(n * 0.99)
+
+        result = LoadTestResult(
+            virtual_users=virtual_users,
+            requests_per_second=requests_count / total_time if total_time > 0 else 0,
+            average_response_time_ms=avg_time,
+            p95_response_time_ms=response_times[p95_idx] if n > p95_idx else avg_time,
+            p99_response_time_ms=response_times[p99_idx] if n > p99_idx else avg_time,
+            error_rate=(len(errors) / requests_count * 100) if requests_count > 0 else 0,
+            throughput=successful_requests / total_time if total_time > 0 else 0,
+            total_requests=requests_count,
+            successful_requests=successful_requests,
+            failed_requests=len(errors),
+            min_response_time_ms=min_time,
+            max_response_time_ms=max_time,
+        )
+
+        return {
+            "success": result.error_rate < 5,
+            "load_test": {
+                "virtual_users": result.virtual_users,
+                "total_requests": result.total_requests,
+                "successful_requests": result.successful_requests,
+                "failed_requests": result.failed_requests,
+                "requests_per_second": round(result.requests_per_second, 2),
+                "average_response_time_ms": round(result.average_response_time_ms, 2),
+                "min_response_time_ms": round(result.min_response_time_ms, 2),
+                "max_response_time_ms": round(result.max_response_time_ms, 2),
+                "p95_response_time_ms": round(result.p95_response_time_ms, 2),
+                "p99_response_time_ms": round(result.p99_response_time_ms, 2),
+                "error_rate": round(result.error_rate, 2),
+                "throughput": round(result.throughput, 2),
+                "duration_seconds": round(total_time, 2),
+            },
+            "status": "passed" if result.error_rate < 5 else "failed",
+            "errors": errors[:10],
+            **results,
+        }
+
+    async def profile_resources(self, page: Page) -> dict[str, Any]:
+        """
+        Profile page resources in detail.
+
+        Args:
+            page: Playwright page object
+
+        Returns:
+            Detailed resource profile
+        """
+        profile = ResourceProfile()
+
+        resource_data = await page.evaluate("""() => {
+            const entries = performance.getEntriesByType('resource');
+            const byType = {};
+            const byDomain = {};
+            const largeResources = [];
+            const slowRequests = [];
+
+            entries.forEach(entry => {
+                const size = entry.transferSize || 0;
+                const duration = entry.duration || 0;
+
+                const type = entry.name.split('.').pop().split('?')[0].toLowerCase() || 'other';
+                byType[type] = (byType[type] || 0) + size;
+
+                try {
+                    const domain = new URL(entry.name).hostname;
+                    byDomain[domain] = (byDomain[domain] || 0) + size;
+                } catch (e) {
+                    byDomain['local'] = (byDomain['local'] || 0) + size;
+                }
+
+                if (size > 500 * 1024) {
+                    largeResources.push({
+                        url: entry.name.substring(0, 100),
+                        size_kb: (size / 1024).toFixed(2),
+                        type: type,
+                    });
+                }
+
+                if (duration > 1000) {
+                    slowRequests.push({
+                        url: entry.name.substring(0, 100),
+                        duration_ms: duration.toFixed(2),
+                        type: type,
+                    });
+                }
+            });
+
+            return {
+                totalSize: entries.reduce((sum, e) => sum + (e.transferSize || 0), 0),
+                byType,
+                byDomain,
+                largeResources: largeResources.slice(0, 10),
+                slowRequests: slowRequests.slice(0, 10),
+                count: entries.length,
+            };
+        }""")
+
+        profile.total_size_bytes = resource_data.get("totalSize", 0)
+        profile.by_type = resource_data.get("byType", {})
+        profile.by_domain = resource_data.get("byDomain", {})
+        profile.large_resources = resource_data.get("largeResources", [])
+        profile.slow_requests = resource_data.get("slowRequests", [])
+
+        return {
+            "total_size_mb": round(profile.total_size_bytes / (1024 * 1024), 2),
+            "resource_count": resource_data.get("count", 0),
+            "by_type": {k: round(v / 1024, 2) for k, v in profile.by_type.items()},
+            "by_domain": {k: round(v / 1024, 2) for k, v in profile.by_domain.items()},
+            "large_resources": profile.large_resources,
+            "slow_requests": profile.slow_requests,
+            "recommendations": self._get_resource_recommendations(profile),
+        }
+
+    def _get_resource_recommendations(self, profile: ResourceProfile) -> list[str]:
+        """Generate resource optimization recommendations."""
+        recommendations = []
+
+        if profile.total_size_bytes > 2 * 1024 * 1024:
+            recommendations.append("Total page size exceeds 2MB - consider optimizing")
+
+        for resource_type, size in profile.by_type.items():
+            if resource_type in ["js", "javascript"] and size > 500 * 1024:
+                recommendations.append(
+                    f"JavaScript ({size / 1024:.0f}KB) - Consider code splitting"
+                )
+            elif resource_type in ["css", "stylesheet"] and size > 100 * 1024:
+                recommendations.append(
+                    f"CSS ({size / 1024:.0f}KB) - Consider critical CSS extraction"
+                )
+
+        for resource in profile.large_resources[:3]:
+            recommendations.append(
+                f"Large resource: {resource['url'][:50]}... ({resource['size_kb']}KB)"
+            )
+
+        for request in profile.slow_requests[:3]:
+            recommendations.append(
+                f"Slow request: {request['url'][:50]}... ({request['duration_ms']}ms)"
+            )
+
+        if not recommendations:
+            recommendations.append("Resource profile looks good!")
+
+        return recommendations
+
+    async def analyze_network_waterfall(self, page: Page, url: str) -> dict[str, Any]:
+        """
+        Analyze network request waterfall.
+
+        Args:
+            page: Playwright page object
+            url: URL to analyze
+
+        Returns:
+            Waterfall analysis with timing breakdown
+        """
+        await page.goto(url, wait_until="networkidle")
+
+        waterfall_data = await page.evaluate("""() => {
+            const entries = performance.getEntriesByType('resource')
+                .sort((a, b) => a.startTime - b.startTime);
+
+            const firstPaint = performance.getEntriesByType('paint')
+                .find(e => e.name === 'first-contentful-paint')?.startTime || 0;
+
+            let totalBlockingTime = 0;
+            let lastEndTime = 0;
+
+            const requests = entries.map(entry => {
+                const start = entry.startTime;
+                const duration = entry.duration;
+                const end = start + duration;
+
+                const ttfb = entry.responseStart - entry.requestStart;
+                const download = entry.responseEnd - entry.responseStart;
+
+                if (start < lastEndTime) {
+                    totalBlockingTime += lastEndTime - start;
+                }
+                lastEndTime = end;
+
+                return {
+                    url: entry.name.substring(0, 80),
+                    start_ms: start.toFixed(2),
+                    duration_ms: duration.toFixed(2),
+                    ttfb_ms: ttfb.toFixed(2),
+                    download_ms: download.toFixed(2),
+                    size_kb: ((entry.transferSize || 0) / 1024).toFixed(2),
+                };
+            });
+
+            return {
+                requests: requests,
+                first_paint_ms: firstPaint.toFixed(2),
+                total_requests: entries.length,
+                total_duration_ms: (lastEndTime - entries[0]?.startTime || 0).toFixed(2),
+                total_blocking_time_ms: totalBlockingTime.toFixed(2),
+            };
+        }""")
+
+        return {
+            "url": url,
+            "waterfall": waterfall_data["requests"],
+            "first_paint_ms": waterfall_data["first_paint_ms"],
+            "total_requests": waterfall_data["total_requests"],
+            "total_duration_ms": waterfall_data["total_duration_ms"],
+            "total_blocking_time_ms": waterfall_data["total_blocking_time_ms"],
+            "bottlenecks": self._identify_waterfall_bottlenecks(waterfall_data),
+        }
+
+    def _identify_waterfall_bottlenecks(self, waterfall_data: dict) -> list[dict]:
+        """Identify bottlenecks in waterfall data."""
+        bottlenecks = []
+
+        requests = waterfall_data.get("requests", [])
+
+        for i, req in enumerate(requests):
+            ttfb = float(req.get("ttfb_ms", 0))
+            if ttfb > 1000:
+                bottlenecks.append(
+                    {
+                        "url": req["url"],
+                        "issue": "High Time to First Byte",
+                        "impact_ms": ttfb,
+                        "recommendation": "Check server response time or CDN configuration",
+                    }
+                )
+
+            download = float(req.get("download_ms", 0))
+            size = float(req.get("size_kb", 0))
+            if download > 500 and size > 500:
+                bottlenecks.append(
+                    {
+                        "url": req["url"],
+                        "issue": "Slow resource download",
+                        "impact_ms": download,
+                        "size_kb": size,
+                        "recommendation": "Compress or lazy-load this resource",
+                    }
+                )
+
+        return bottlenecks[:5]
