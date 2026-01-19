@@ -1,0 +1,24 @@
+# Sample Test Data Schema
+# Use with DataGenerator.generate_from_schema()
+
+{
+  "user": {
+    "firstname": "string",
+    "lastname": "string",
+    "email": "email",
+    "phone": "phone",
+    "age": "number(min=18, max=99)"
+  },
+  "address": {
+    "street": "string",
+    "city": "string",
+    "state": "string",
+    "zip_code": "string",
+    "country": "string"
+  },
+  "company": {
+    "name": "string",
+    "industry": "choice(options=Technology,Healthcare,Finance,Retail,Manufacturing)",
+    "employees": "number(min=1, max=10000)"
+  }
+}
