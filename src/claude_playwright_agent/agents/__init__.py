@@ -10,6 +10,9 @@ from claude_playwright_agent.agents.ingest_agent import IngestionAgent
 from claude_playwright_agent.agents.bdd_agent import BDDConversionAgent
 from claude_playwright_agent.agents.dedup_agent import DeduplicationAgent
 from claude_playwright_agent.agents.exec_agent import ExecutionAgent
+from claude_playwright_agent.agents.recording_agent import RecordingAgent
+from claude_playwright_agent.agents.api_agent import APITestingAgent
+from claude_playwright_agent.agents.performance_agent import PerformanceAgent
 from claude_playwright_agent.agents.orchestrator import (
     AgentMessage,
     AgentLifecycleManager,
@@ -111,6 +114,9 @@ __all__ = [
     "BDDConversionAgent",
     "DeduplicationAgent",
     "ExecutionAgent",
+    "RecordingAgent",
+    "APITestingAgent",
+    "PerformanceAgent",
     # Orchestrator
     "OrchestratorAgent",
     "get_orchestrator",
