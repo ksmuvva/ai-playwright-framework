@@ -1,0 +1,19 @@
+{
+  "project_metadata": {
+    "name": "ai-playwright-framework",
+    "created_at": "2026-01-25T21:44:36.663431",
+    "framework_type": "behave",
+    "version": "1.0.0",
+    "description": ""
+  },
+  "recordings": [],
+  "recordings_data": {},
+  "scenarios": [],
+  "test_runs": [],
+  "agent_status": [],
+  "components": {},
+  "page_objects": {},
+  "selector_catalog": {},
+  "workflow_contexts": {},
+  "agent_chains": {}
+}

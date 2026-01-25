@@ -1,0 +1,18 @@
+
+project:
+  name: demo_project
+  language: python
+  bdd: true
+
+ai:
+  provider: glm
+  model: glm-4.7
+  enabled: true
+
+self_healing:
+  enabled: true
+  max_attempts: 3
+
+recording:
+  source: recordings
+  output: features

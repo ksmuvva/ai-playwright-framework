@@ -1,0 +1,51 @@
+E2E TEST EXECUTION REPORT
+Date: 2026-01-25 10:33:38
+================================================================================
+
+
+SCENARIO: Navigate to home page and verify heading
+Status: FAIL
+----------------------------------------------------------------------
+  [PASS] Given I am on the home page
+  [PASS] When I navigate to the home page
+  [PASS] Then I should see the main heading
+       Heading: 404
+  [PASS] Then the heading should contain "Playwright"
+  [FAIL] Error
+
+SCENARIO: Search for documentation
+Status: FAIL
+----------------------------------------------------------------------
+  [PASS] Given I am on the home page
+  [PASS] When I search for "locator"
+  [FAIL] Error
+       Page.wait_for_selector: Timeout 5000ms exceeded.
+Call log:
+  - waiting for locator("input[placeholder*='Search']") to be visible
+
+
+SCENARIO: Navigate to API documentation
+Status: FAIL
+----------------------------------------------------------------------
+  [PASS] Given I am on the home page
+  [PASS] When I click the "Get Started" button
+  [FAIL] Error
+       Page.wait_for_selector: Timeout 5000ms exceeded.
+Call log:
+  - waiting for locator("a[href='/docs/intro']") to be visible
+
+
+SCENARIO: Verify menu button exists
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Given I am on the home page
+  [PASS] Then the menu button should be visible
+       Menu visible: False
+
+SCENARIO: Multiple page navigation
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Given I am on the home page
+  [PASS] When I navigate to API documentation
+  [PASS] Then I should see API documentation title
+       API Title: 404

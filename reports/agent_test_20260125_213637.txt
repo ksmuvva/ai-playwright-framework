@@ -1,0 +1,114 @@
+COMPREHENSIVE AGENT TEST REPORT
+Date: 2026-01-25 21:36:37
+================================================================================
+
+
+AGENT: OrchestratorAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import OrchestratorAgent
+  [PASS] Create MessageQueue
+  [PASS] Import all orchestration components
+
+AGENT: IngestionAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import IngestionAgent
+  [PASS] Parse recording content
+       Parsed 2 actions
+
+AGENT: BDDConversionAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import BDD components
+  [PASS] Convert to Gherkin
+       Generated Gherkin feature
+
+AGENT: DeduplicationAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import deduplication components
+  [PASS] Analyze patterns
+       Found 1 patterns, 1 page objects
+
+AGENT: ExecutionAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import execution components
+  [PASS] Create execution engine
+       Engine created successfully
+  [PASS] Test framework enum
+       Frameworks: ['behave', 'pytest-bdd', 'playwright']
+
+AGENT: RecordingAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import RecordingAgent
+  [PASS] Recording capabilities
+       5 capabilities
+
+AGENT: TestAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import TestAgent
+  [PASS] TestAgent capabilities
+       4 capabilities
+
+AGENT: DebugAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import DebugAgent
+  [PASS] FailureAnalyzer import
+  [PASS] Categorize failures
+       10 categories
+
+AGENT: ReportAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import ReportAgent
+  [PASS] ReportGenerator import
+  [PASS] Report formats
+       2 formats
+
+AGENT: APITestingAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import APITestingAgent
+  [PASS] API testing capabilities
+       4 capabilities
+
+AGENT: PerformanceAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import PerformanceAgent
+  [PASS] Performance capabilities
+       4 capabilities
+
+AGENT: AccessibilityAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import AccessibilityAgent
+  [PASS] Accessibility capabilities
+       4 capabilities
+
+AGENT: VisualRegressionAgent
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] Import VisualRegressionAgent
+  [PASS] Visual regression capabilities
+       4 capabilities
+
+AGENT: Support Modules (11 Components)
+Status: PASS
+----------------------------------------------------------------------
+  [PASS] BaseAgent import
+  [PASS] PlaywrightRecordingParser
+  [PASS] SelfHealingEngine
+  [PASS] FailureAnalyzer
+  [PASS] BDDConverter
+  [PASS] DeduplicationEngine
+  [PASS] TestExecutionEngine
+  [PASS] ReportGenerator
+  [PASS] MessageQueue
+  [PASS] AgentLifecycleManager
+  [PASS] AgentHealthMonitor

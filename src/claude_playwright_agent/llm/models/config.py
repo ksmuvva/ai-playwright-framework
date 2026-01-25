@@ -122,7 +122,8 @@ class GLMConfig(LLMConfig):
     def __post_init__(self) -> None:
         """Set default base_url for Zhipu AI if not provided."""
         if self.base_url is None:
-            self.base_url = "https://open.bigmodel.cn/api/paas/v4"
+            # GLM-4.7 uses the new z.ai endpoint
+            self.base_url = "https://api.z.ai/api/paas/v4/"
         super().__post_init__()
 
     def get_headers(self) -> dict[str, str]:

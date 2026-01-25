@@ -109,7 +109,11 @@
       "Bash(bash cleanup_repo.sh:*)",
       "Bash(git restore:*)",
       "Bash(git reset:*)",
-      "Bash(pytest:*)"
+      "Bash(pytest:*)",
+      "Bash(test:*)",
+      "Bash(python3:*)",
+      "Bash(cat:*)",
+      "Bash(xargs:*)"
     ]
   }
 }
